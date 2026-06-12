@@ -15,6 +15,7 @@ for (let h = 9; h <= 21; h++) {
 }
 
 const emptyItem = { serviceId: "", staffUserIds: [], startAt: "", endAt: "", notes: "" };
+const toApiDateTime = (value) => (value ? new Date(value).toISOString() : "");
 
 export default function AppointmentsPage() {
   const navigate = useNavigate();
@@ -157,14 +158,19 @@ export default function AppointmentsPage() {
     }
 
     try {
-      const sortedStarts = activeItems.map((item) => item.startAt).sort();
-      const sortedEnds = activeItems.map((item) => item.endAt).sort();
+      const payloadItems = activeItems.map((item) => ({
+        ...item,
+        startAt: toApiDateTime(item.startAt),
+        endAt: toApiDateTime(item.endAt)
+      }));
+      const sortedStarts = payloadItems.map((item) => item.startAt).sort();
+      const sortedEnds = payloadItems.map((item) => item.endAt).sort();
       const payload = {
         ...form,
-        items: activeItems,
+        items: payloadItems,
         startAt: sortedStarts[0],
         endAt: sortedEnds[sortedEnds.length - 1],
-        primaryStaffUserId: activeItems[0]?.staffUserIds?.[0] || form.items[0]?.staffUserIds?.[0] || ""
+        primaryStaffUserId: payloadItems[0]?.staffUserIds?.[0] || form.items[0]?.staffUserIds?.[0] || ""
       };
       await api.post("/owner/appointments", payload);
       setStatus({ error: "", success: "Appointment created." });
@@ -513,6 +519,8 @@ export default function AppointmentsPage() {
         }
         .sp-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
         .sp-grid-2 > * { min-width: 0; }
+        .sp-time-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        .sp-time-grid > * { min-width: 0; }
         .sp-footer {
           padding: 16px 24px;
           background: white;
@@ -757,7 +765,7 @@ export default function AppointmentsPage() {
                       </div>
 
                       <div className="add-link" style={{ margin: "12px 0" }}>Add more staff +</div>
-                      <div className="sp-grid-2">
+                      <div className="sp-time-grid">
                         <div>
                           <label style={{ fontSize: "0.8rem", color: "#94a3b8", display: "block", marginBottom: 4 }}>From Time</label>
                           <input type="datetime-local" className="sp-input" value={item.startAt} onChange={(event) => handleUpdateItem(idx, "startAt", event.target.value)} required />

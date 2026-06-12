@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { extractIndianPhoneDigits, normalizeIndianPhoneInputDigits } from "../utils/phone";
 
 export default function IndianPhoneInput({
@@ -12,8 +13,22 @@ export default function IndianPhoneInput({
   name,
   id
 }) {
-  const digits = extractIndianPhoneDigits(value);
-  const emitDigits = (rawValue) => onChange?.(`+91${normalizeIndianPhoneInputDigits(rawValue)}`);
+  const externalDigits = extractIndianPhoneDigits(value);
+  const [draftDigits, setDraftDigits] = useState(externalDigits);
+  const lastEmittedRef = useRef(externalDigits);
+
+  useEffect(() => {
+    if (externalDigits !== lastEmittedRef.current) {
+      setDraftDigits(externalDigits);
+    }
+  }, [externalDigits]);
+
+  const emitDigits = (rawValue) => {
+    const nextDigits = normalizeIndianPhoneInputDigits(rawValue);
+    lastEmittedRef.current = nextDigits;
+    setDraftDigits(nextDigits);
+    onChange?.(nextDigits ? `+91${nextDigits}` : "");
+  };
 
   return (
     <div
@@ -48,7 +63,7 @@ export default function IndianPhoneInput({
         autoComplete="off"
         required={required}
         disabled={disabled}
-        value={digits}
+        value={draftDigits}
         maxLength={10}
         placeholder={placeholder}
         onChange={(event) => emitDigits(event.target.value)}

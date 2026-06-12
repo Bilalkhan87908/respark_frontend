@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
 import { UserCircle, ShieldCheck, Mail, MapPin, Building, Sparkles, CheckCircle2 } from "lucide-react";
@@ -82,7 +83,12 @@ export default function MyProfilePage() {
               }} style={{ display: "grid", gap: 20 }}>
                 <div>
                   <label className="p-label">Phone Number</label>
-                  <input className="p-input" value={form.phone} placeholder="+91 9876543210" onChange={(e) => setForm({...form, phone: e.target.value})} />
+                  <IndianPhoneInput
+                    value={form.phone}
+                    onChange={(value) => setForm({ ...form, phone: value })}
+                    className="p-input"
+                    placeholder="9876543210"
+                  />
                 </div>
                 <div>
                   <label className="p-label">Avatar URL</label>

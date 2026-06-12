@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Search, Filter, Plus, Download, Upload, MoreVertical, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, X, ChevronDown } from "lucide-react";
 import { api } from "../../api/client";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import { downloadFromApi } from "../../utils/download";
 import PageLoader from "../../components/PageLoader";
 
@@ -432,7 +433,7 @@ export default function CustomersPage() {
               <div className="modal-body">
                 <div className="form-group">
                   <label>Mobile Number *</label>
-                  <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="e.g. +91 9876543210" />
+                  <IndianPhoneInput required value={formData.phone} onChange={(phone) => setFormData({ ...formData, phone })} />
                 </div>
                 <div className="form-group">
                   <label>Name *</label>
@@ -447,7 +448,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="form-group">
                   <label>Alternate Mobile Number</label>
-                  <input type="text" value={formData.alternatePhone} onChange={e => setFormData({...formData, alternatePhone: e.target.value})} />
+                  <IndianPhoneInput value={formData.alternatePhone} onChange={(alternatePhone) => setFormData({ ...formData, alternatePhone })} />
                 </div>
                 <div className="form-group">
                   <label>Email</label>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
 import { formatApiError } from "../../utils/apiError";
@@ -194,7 +195,7 @@ export default function ExpertsPage() {
               </select>
               <input value={form.roleTitle} placeholder="Visible title" onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} />
             </div>
-            <input value={form.phone} placeholder="Phone" onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+            <IndianPhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
             <input value={form.avatarUrl} placeholder="Avatar URL" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} />
             <select value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value, serviceIds: [] })}>
               <option value="">No fixed branch</option>

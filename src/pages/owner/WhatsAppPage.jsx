@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import ModuleTabs from "../../components/ModuleTabs";
 import { formatApiError } from "../../utils/apiError";
 import { downloadFromApi } from "../../utils/download";
@@ -270,7 +271,11 @@ export default function WhatsAppPage() {
                   </option>
                 ))}
               </select>
-              <input placeholder="Phone" value={message.phone} onChange={(e) => setMessage({ ...message, phone: e.target.value })} />
+              <IndianPhoneInput
+                value={message.phone}
+                onChange={(value) => setMessage({ ...message, phone: value })}
+                placeholder="9876543210"
+              />
               <input placeholder="Template type" value={message.templateType} onChange={(e) => setMessage({ ...message, templateType: e.target.value })} />
               <select value={message.mediaKind} onChange={(e) => setMessage({ ...message, mediaKind: e.target.value })}>
                 <option value="IMAGE">Image</option>

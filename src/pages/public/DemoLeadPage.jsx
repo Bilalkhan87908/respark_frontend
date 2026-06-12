@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import demoIllustration from "../../assets/public-demo-illustration.svg";
 import EmptyState from "../../components/EmptyState";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import PageLoader from "../../components/PageLoader";
 import PublicMobileMenu from "../../components/PublicMobileMenu";
 import { formatApiError } from "../../utils/apiError";
@@ -138,10 +139,10 @@ export default function PublicDemoLeadPage() {
             </label>
               <label>
               <span className="muted">Phone / WhatsApp number</span>
-              <input
+              <IndianPhoneInput
                 value={form.phone}
-                placeholder="Phone / WhatsApp number"
-                onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+                placeholder="9876543210"
+                onChange={(value) => setForm({ ...form, phone: value })} />
             </label>
               <label>
               <span className="muted">Salon / company name</span>

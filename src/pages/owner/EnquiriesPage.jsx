@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import ModuleTabs from "../../components/ModuleTabs";
 import { formatApiError } from "../../utils/apiError";
 import PageLoader from "../../components/PageLoader";
@@ -174,10 +175,12 @@ export default function EnquiriesPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
                   <label className="eq-label">Phone</label>
-                  <div style={{ position: "relative" }}>
-                    <Phone size={16} color="#94a3b8" style={{ position: "absolute", left: 14, top: 13 }} />
-                    <input className="eq-input" style={{ paddingLeft: 40 }} placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
-                  </div>
+                  <IndianPhoneInput
+                    value={form.phone}
+                    onChange={(value) => setForm({ ...form, phone: value })}
+                    className="eq-input"
+                    placeholder="9876543210"
+                  />
                 </div>
                 <div>
                   <label className="eq-label">Source</label>

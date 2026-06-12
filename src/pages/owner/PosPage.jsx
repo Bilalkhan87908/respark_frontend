@@ -6,6 +6,7 @@ import { formatApiError } from "../../utils/apiError";
 import EmptyState from "../../components/EmptyState";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import './PosPage.css';
 
 const emptyServiceItem = { itemType: "SERVICE", serviceId: "", staffUserId: "", qty: 1, taxPct: 0 };
@@ -780,7 +781,13 @@ export default function PosPage() {
             <h3 style={{ marginTop: 0, marginBottom: 16, color: "#0f172a", fontSize: "18px" }}>Quick Add Guest</h3>
             <form onSubmit={handleAddGuest} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} placeholder="Full Name *" required value={newGuestForm.name} onChange={e => setNewGuestForm(c => ({ ...c, name: e.target.value }))} />
-              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} placeholder="Phone Number *" required value={newGuestForm.phone} onChange={e => setNewGuestForm(c => ({ ...c, phone: e.target.value }))} />
+              <IndianPhoneInput
+                required
+                value={newGuestForm.phone}
+                onChange={(phone) => setNewGuestForm(c => ({ ...c, phone }))}
+                style={{ width: "100%", borderRadius: 6 }}
+                inputStyle={{ padding: "10px" }}
+              />
               <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} type="email" placeholder="Email (Optional)" value={newGuestForm.email} onChange={e => setNewGuestForm(c => ({ ...c, email: e.target.value }))} />
               <select style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} value={newGuestForm.gender} onChange={e => setNewGuestForm(c => ({ ...c, gender: e.target.value }))}>
                 <option value="FEMALE">Female</option>

@@ -10,6 +10,13 @@ export const normalizeIndianPhone = (value) => {
 
 export const isValidIndianPhone = (value) => /^\+91[6-9]\d{9}$/.test(normalizeIndianPhone(value));
 
+export const extractIndianPhoneDigits = (value) => {
+  const normalized = normalizeIndianPhone(value);
+  return normalized.startsWith("+91") ? normalized.slice(3, 13) : "";
+};
+
+export const normalizeIndianPhoneInputDigits = (value) => String(value ?? "").replace(/\D/g, "").slice(0, 10);
+
 const phoneKeyPattern = /(^|_)(phone|mobile|whatsapp)(number)?$/i;
 const phoneKeys = new Set(["phone", "customerPhone", "supportPhone", "whatsappNumber", "alternatePhone"]);
 

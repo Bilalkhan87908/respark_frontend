@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { customerApi } from "../../api/customerClient";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import PageLoader from "../../components/PageLoader";
 import { formatApiError } from "../../utils/apiError";
 
@@ -62,7 +63,11 @@ export default function CustomerRegisterPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div>
                   <label className="auth-label">Phone</label>
-                  <input className="auth-input" placeholder="Phone number" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
+                  <IndianPhoneInput
+                    value={form.phone}
+                    onChange={(value) => setForm({ ...form, phone: value })}
+                    placeholder="9876543210"
+                  />
                 </div>
                 <div>
                   <label className="auth-label">Email (Optional)</label>

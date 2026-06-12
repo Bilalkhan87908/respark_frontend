@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useParams, useNavigate } from "react-router-dom";
 import { customerApi, getCustomerSession, setCustomerSession } from "../../api/customerClient";
 import { formatApiError } from "../../utils/apiError";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import EmptyState from "../../components/EmptyState";
 import AppointmentFeedbackForm from "../../components/customer/AppointmentFeedbackForm";
 import PageLoader from "../../components/PageLoader";
@@ -274,7 +275,11 @@ export default function CustomerPortalPage() {
                       </div>
                       <div>
                         <label className="p-label">Phone Number</label>
-                        <input className="p-input" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} required />
+                        <IndianPhoneInput
+                          value={profileForm.phone}
+                          onChange={(value) => setProfileForm({ ...profileForm, phone: value })}
+                          className="p-input"
+                        />
                       </div>
                     </div>
                     <div>

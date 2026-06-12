@@ -22,6 +22,12 @@ export const setAuthSessionHandlers = ({ getCurrentSession, onRefreshSuccess, on
 };
 
 api.interceptors.request.use((config) => {
+  const session = getSession?.();
+  const accessToken = session?.accessToken;
+  config.headers = config.headers || {};
+  if (accessToken && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
   if (config.data && typeof config.data === "object" && !(config.data instanceof FormData)) {
     validatePhoneFields(config.data);
     config.data = normalizePhoneFields(config.data);

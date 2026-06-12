@@ -1,6 +1,7 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
 import "./ServiceHubPage.css";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
 import { formatApiError } from "../../utils/apiError";
@@ -515,7 +516,7 @@ export default function UsersPage() {
                         </div>
                         <div className="hub-form-group">
                           <label>Phone</label>
-                          <input type="text" className="hub-input" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+                          <IndianPhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} className="hub-input" inputStyle={{ padding: "12px 14px" }} />
                         </div>
                       </div>
                       

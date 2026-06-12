@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { formatApiError } from "../../utils/apiError";
 import EmptyState from "../../components/EmptyState";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
 import { Link, Settings2, ShieldCheck, Link2, Smartphone, FileText, CheckCircle2, AlertCircle, Copy } from "lucide-react";
@@ -138,7 +139,12 @@ export default function CustomerPortalSettingsPage() {
               <form onSubmit={save} style={{ display: "grid", gap: 24 }}>
                 <div>
                   <label className="p-label" style={{ display: "flex", alignItems: "center", gap: 6 }}><Smartphone size={16} /> Support WhatsApp</label>
-                  <input className="p-input" placeholder="e.g. +91 9876543210" value={form.whatsappNumber} onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })} />
+                  <IndianPhoneInput
+                    value={form.whatsappNumber}
+                    onChange={(value) => setForm({ ...form, whatsappNumber: value })}
+                    className="p-input"
+                    placeholder="9876543210"
+                  />
                   <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0 0" }}>Displayed to customers in their portal for direct support.</p>
                 </div>
                 <div>

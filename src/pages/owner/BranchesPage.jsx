@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
+import IndianPhoneInput from "../../components/IndianPhoneInput";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
 import { formatApiError } from "../../utils/apiError";
@@ -103,7 +104,7 @@ export default function BranchesPage() {
             </label>
             <label className="settings-input-group">
               <span className="muted">Phone</span>
-              <input value={form.phone} placeholder="e.g. +91 9876543210" onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+              <IndianPhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
             </label>
             <label className="settings-input-group" style={{ gridColumn: "1 / -1" }}>
               <span className="muted">Email</span>

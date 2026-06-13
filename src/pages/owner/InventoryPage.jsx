@@ -27,6 +27,9 @@ export default function InventoryPage() {
   const [lowStock, setLowStock] = useState([]);
   const [branches, setBranches] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [poFilterStatus, setPoFilterStatus] = useState("Placed");
+  const [poFromDate, setPoFromDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [poToDate, setPoToDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState({ error: "", success: "" });
@@ -70,7 +73,33 @@ export default function InventoryPage() {
   const pendingOrders = orders.filter(o => o.status === "DRAFT" || o.status === "SENT").length;
   const approvedOrders = orders.filter(o => o.status === "APPROVED" || o.status === "RECEIVED").length;
   const rejectedOrders = orders.filter(o => o.status === "CANCELLED").length;
+  const poCounts = useMemo(() => {
+    return {
+      Placed: orders.filter(o => o.status === "DRAFT" || o.status === "ORDERED").length,
+      Approved: 0,
+      Rejected: 0,
+      Partial_Settled: orders.filter(o => o.status === "PARTIALLY_RECEIVED").length,
+      Settled: orders.filter(o => o.status === "RECEIVED").length,
+      Cancelled: orders.filter(o => o.status === "CANCELLED").length,
+      Total: orders.length
+    };
+  }, [orders]);
 
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const oDate = new Date(o.createdAt || o.orderedAt).toISOString().slice(0, 10);
+      const inDateRange = oDate >= poFromDate && oDate <= poToDate;
+      if (!inDateRange) return false;
+
+      if (poFilterStatus === "Placed") return o.status === "DRAFT" || o.status === "ORDERED";
+      if (poFilterStatus === "Approved") return false;
+      if (poFilterStatus === "Rejected") return false;
+      if (poFilterStatus === "Partial_Settled") return o.status === "PARTIALLY_RECEIVED";
+      if (poFilterStatus === "Settled") return o.status === "RECEIVED";
+      if (poFilterStatus === "Cancelled") return o.status === "CANCELLED";
+      return true;
+    });
+  }, [orders, poFilterStatus, poFromDate, poToDate]);
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -254,7 +283,146 @@ export default function InventoryPage() {
         )}
 
         {/* Dynamic Tab Implementations */}
-        {activeTab !== "Dashboard" && (
+        {activeTab !== "Dashboard" && activeTab === "Purchase Order" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Filters Row */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+              {/* Left Side: Date Inputs */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: "0.9rem", color: "#64748b", fontWeight: 500 }}>From :</span>
+                  <input 
+                    type="date" 
+                    value={poFromDate} 
+                    onChange={(e) => setPoFromDate(e.target.value)}
+                    style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, outline: "none", color: "#334155", fontWeight: 500 }} 
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: "0.9rem", color: "#64748b", fontWeight: 500 }}>To :</span>
+                  <input 
+                    type="date" 
+                    value={poToDate} 
+                    onChange={(e) => setPoToDate(e.target.value)}
+                    style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, outline: "none", color: "#334155", fontWeight: 500 }} 
+                  />
+                </div>
+              </div>
+
+              {/* Right Side: Status Tabs and New Button */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { label: "Placed", count: poCounts.Placed },
+                  { label: "Approved", count: poCounts.Approved },
+                  { label: "Rejected", count: poCounts.Rejected },
+                  { label: "Partial_Settled", count: poCounts.Partial_Settled },
+                  { label: "Settled", count: poCounts.Settled },
+                  { label: "Cancelled", count: poCounts.Cancelled },
+                  { label: "Total", count: poCounts.Total }
+                ].map((btn) => {
+                  const isActive = poFilterStatus === btn.label;
+                  return (
+                    <button
+                      key={btn.label}
+                      onClick={() => setPoFilterStatus(btn.label)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 16px",
+                        borderRadius: 6,
+                        border: isActive ? "none" : "1px solid #cbd5e1",
+                        background: isActive ? "#3b82f6" : "white",
+                        color: isActive ? "white" : "#475569",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      {btn.label.replace("_", " ")}
+                      <span style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "2px 6px",
+                        minWidth: 20,
+                        borderRadius: "10px",
+                        background: isActive ? "rgba(255,255,255,0.2)" : "#f1f5f9",
+                        color: isActive ? "white" : "#64748b",
+                        fontSize: "0.75rem",
+                        fontWeight: 700
+                      }}>
+                        {btn.count}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* New + button */}
+                <button
+                  onClick={() => navigate("/admin/purchases/orders/create")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: "1px solid #cbd5e1",
+                    background: "white",
+                    color: "#475569",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  New <Plus size={16} style={{ color: "#3b82f6" }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Content Panel */}
+            <div style={{ background: "white", borderRadius: 12, border: "1px solid #e2e8f0", padding: filteredOrders.length === 0 ? "80px 24px" : "0px", minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              {filteredOrders.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#64748b" }}>
+                  <span style={{ fontSize: "1.25rem", fontWeight: 600, display: "block" }}>
+                    {poFilterStatus.replace("_", " ")} Purchase Orders Not Available
+                  </span>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", color: "#475569", fontSize: "0.85rem", textTransform: "uppercase" }}>
+                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>PO #</th>
+                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Date</th>
+                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Vendor</th>
+                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Products</th>
+                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Amount</th>
+                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map(o => (
+                      <tr key={o.id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                        <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{o.orderNumber || o.id?.slice(-6)}</td>
+                        <td style={{ padding: "16px 24px", color: "#64748b" }}>{new Date(o.createdAt || o.orderedAt).toLocaleDateString()}</td>
+                        <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.vendor?.name || "-"}</td>
+                        <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.items?.length || 0} items</td>
+                        <td style={{ padding: "16px 24px", fontWeight: 600 }}>₹{o.totalAmount || 0}</td>
+                        <td style={{ padding: "16px 24px" }}>
+                          <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: o.status === "RECEIVED" ? "#dcfce7" : o.status === "CANCELLED" ? "#fee2e2" : "#fef3c7", color: o.status === "RECEIVED" ? "#166534" : o.status === "CANCELLED" ? "#991b1b" : "#92400e" }}>{o.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic Tab Implementations (Other than PO) */}
+        {activeTab !== "Dashboard" && activeTab !== "Purchase Order" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: "1.6rem", color: "#0f172a", fontWeight: "700" }}>{activeTab}</h2>
@@ -264,16 +432,6 @@ export default function InventoryPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr style={{ background: "#f8fafc", color: "#475569", fontSize: "0.85rem", textTransform: "uppercase" }}>
-                    {activeTab === "Purchase Order" && (
-                      <>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>PO #</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Date</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Vendor</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Products</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Amount</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
-                      </>
-                    )}
                     {activeTab === "Approval" && (
                       <>
                         <th style={{ padding: "16px 24px", fontWeight: 600 }}>PO #</th>
@@ -305,22 +463,6 @@ export default function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeTab === "Purchase Order" && orders.map(o => (
-                    <tr key={o.id} style={{ borderTop: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{o.orderNumber || o.id?.slice(-6)}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{new Date(o.createdAt).toLocaleDateString()}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.vendor?.name || "-"}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.items?.length || 0} items</td>
-                      <td style={{ padding: "16px 24px", fontWeight: 600 }}>₹{o.totalAmount || 0}</td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: o.status === "RECEIVED" ? "#dcfce7" : o.status === "CANCELLED" ? "#fee2e2" : "#fef3c7", color: o.status === "RECEIVED" ? "#166534" : o.status === "CANCELLED" ? "#991b1b" : "#92400e" }}>{o.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                  {activeTab === "Purchase Order" && orders.length === 0 && (
-                    <tr><td colSpan="6" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>No purchase orders found.</td></tr>
-                  )}
-
                   {activeTab === "Approval" && orders.filter(o => o.status === "DRAFT" || o.status === "ORDERED").map(o => (
                     <tr key={o.id} style={{ borderTop: "1px solid #e2e8f0" }}>
                       <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{o.orderNumber || o.id?.slice(-6)}</td>

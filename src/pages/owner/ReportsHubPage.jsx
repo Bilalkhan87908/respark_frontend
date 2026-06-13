@@ -47,7 +47,7 @@ const COLUMNS = {
   product_sales: ["Product", "Category", "Qty", "Sales"],
   service_sales: ["SR. NO.", "Date", "Time", "Guest Name", "Guest Number", "Staff", "Invoice No", "Service", "Category", "Duration", "Qty", "Unit Price", "Discount", "Complimentary", "Redemption Amount", "Redemption Sources", "Tax", "Subtotal", "Total"],
   staff_performance: ["Staff", "Appointments", "Completed", "Revenue", "Commission", "Qty"],
-  monthly_sale: ["Month", "Invoices", "Gross Sales", "Discounts", "Net Sales", "Paid", "Due"],
+  monthly_sale: ["SR. NO.", "DATE", "INVOICE", "GUEST NAME", "GUEST NUMBER", "STAFF", "SUBTOTAL", "DISCOUNT", "INCLUSIVE TAX", "EXCLUSIVE TAX", "TOTAL", "PAYMENT MODE", "REDEMPTION AMOUNT", "BALANCE CLEARED", "ACTUAL TOTAL"],
   day_wise: ["Date", "Invoices", "Cash", "Card", "UPI", "Online", "Total"],
   tip_report: ["SR. NO.", "DATE", "GUEST NAME", "GUEST NUMBER", "INVOICE NO", "STAFF", "TIP AMOUNT", "PAYMENT MODE"],
   complimentary: ["Date", "Service", "Staff", "Customer", "Reason", "Value"],

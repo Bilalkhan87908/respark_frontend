@@ -203,6 +203,13 @@
   overflow: hidden;
 }
 
+.hub-modal-content form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
 .hub-modal-header {
   background: #eff6ff;
   padding: 16px 24px;

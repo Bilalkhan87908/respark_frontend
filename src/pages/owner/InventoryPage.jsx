@@ -15,10 +15,8 @@ export default function InventoryPage() {
 
   const [activeTab, setActiveTab] = useState(() => {
     const path = location.pathname;
-    if (path.includes("/products")) return "Products Catalog";
-    if (path.includes("/categories")) return "Categories";
-    if (path.includes("/stock-movements")) return "Stock Ledger";
-    if (path.includes("/low-stock")) return "Low Stock Alerts";
+    if (path.includes("/approval")) return "Approval";
+    if (path.includes("/reconciliation")) return "Stock Reconciliation";
     if (path.includes("/purchases/vendors")) return "Vendor Management";
     if (path.includes("/purchases/orders")) return "Purchase Order";
     return "Dashboard";

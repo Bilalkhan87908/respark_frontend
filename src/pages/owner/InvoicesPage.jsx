@@ -181,8 +181,12 @@ export default function InvoicesPage() {
                     <div className="invoice-card-paid">Paid {currency(row.paidAmount)}</div>
                   </div>
                   <div className="invoice-card-actions" onClick={e => e.stopPropagation()}>
-                     <button className="invoice-card-btn" title="Download PDF" onClick={() => downloadFromApi(`/owner/invoices/${row.id}/pdf`, { fallbackFilename: `invoice-${row.invoiceNumber}.pdf` })}><Download size={16} /></button>
-                     <button className="invoice-card-btn" title="Download HTML Receipt" onClick={() => downloadFromApi(`/owner/invoices/${row.id}/receipt`, { fallbackFilename: `receipt-${row.invoiceNumber}.html` })}><FileText size={16} /></button>
+                     {row.status !== "UNPAID" && (
+                       <>
+                         <button className="invoice-card-btn" title="Download PDF" onClick={() => downloadFromApi(`/owner/invoices/${row.id}/pdf`, { fallbackFilename: `invoice-${row.invoiceNumber}.pdf` })}><Download size={16} /></button>
+                         <button className="invoice-card-btn" title="Download HTML Receipt" onClick={() => downloadFromApi(`/owner/invoices/${row.id}/receipt`, { fallbackFilename: `receipt-${row.invoiceNumber}.html` })}><FileText size={16} /></button>
+                       </>
+                     )}
                   </div>
                </div>
             </div>

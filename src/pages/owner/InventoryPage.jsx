@@ -111,11 +111,9 @@ export default function InventoryPage() {
 
   const tabs = [
     { name: "Dashboard", icon: <Activity size={18} /> },
-    { name: "Products Catalog", icon: <Package size={18} /> },
-    { name: "Categories", icon: <Layers size={18} /> },
-    { name: "Stock Ledger", icon: <RefreshCw size={18} /> },
     { name: "Purchase Order", icon: <ShoppingCart size={18} /> },
-    { name: "Low Stock Alerts", icon: <AlertTriangle size={18} /> },
+    { name: "Approval", icon: <CheckCircle size={18} /> },
+    { name: "Stock Reconciliation", icon: <RefreshCw size={18} /> },
     { name: "Vendor Management", icon: <Users size={18} /> },
   ];
 
@@ -134,11 +132,9 @@ export default function InventoryPage() {
               onClick={() => {
                 setActiveTab(tab.name);
                 if (tab.name === "Dashboard") navigate("/admin/inventory");
-                if (tab.name === "Products Catalog") navigate("/admin/inventory/products");
-                if (tab.name === "Categories") navigate("/admin/inventory/categories");
-                if (tab.name === "Stock Ledger") navigate("/admin/inventory/stock-movements");
-                if (tab.name === "Low Stock Alerts") navigate("/admin/inventory/low-stock");
                 if (tab.name === "Purchase Order") navigate("/admin/purchases/orders");
+                if (tab.name === "Approval") navigate("/admin/inventory/approval");
+                if (tab.name === "Stock Reconciliation") navigate("/admin/inventory/reconciliation");
                 if (tab.name === "Vendor Management") navigate("/admin/purchases/vendors");
                 }}
               style={{
@@ -264,130 +260,103 @@ export default function InventoryPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: "1.6rem", color: "#0f172a", fontWeight: "700" }}>{activeTab}</h2>
-              {activeTab === "Products Catalog" && <button onClick={() => setIsProductModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#3b82f6", color: "white", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.95rem", boxShadow: "0 2px 4px rgba(59, 130, 246, 0.2)" }}><Plus size={18} /> Create Product</button>}
-              {activeTab === "Categories" && <button onClick={() => setIsCategoryModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#3b82f6", color: "white", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.95rem", boxShadow: "0 2px 4px rgba(59, 130, 246, 0.2)" }}><Plus size={18} /> Add Category</button>}
-              {activeTab === "Stock Ledger" && <button onClick={() => setIsMovementModalOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#3b82f6", color: "white", border: "none", padding: "10px 20px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.95rem", boxShadow: "0 2px 4px rgba(59, 130, 246, 0.2)" }}><Plus size={18} /> Record Movement</button>}
             </div>
 
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr style={{ background: "#f8fafc", color: "#475569", fontSize: "0.85rem", textTransform: "uppercase" }}>
-                    {activeTab === "Products Catalog" && (
-                      <>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Name</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Type</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Category</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Stock</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Selling Price</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
-                      </>
-                    )}
-                    {activeTab === "Categories" && (
-                      <>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Name</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Description</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Sort Order</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
-                      </>
-                    )}
-                    {activeTab === "Stock Ledger" && (
-                      <>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Date</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Product</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Movement</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Quantity</th>
-                      </>
-                    )}
-                    {activeTab === "Low Stock Alerts" && (
-                      <>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Product</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Category</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600, color: "#ef4444" }}>Current Stock</th>
-                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Min Stock Level</th>
-                      </>
-                    )}
                     {activeTab === "Purchase Order" && (
-                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Details</th>
+                      <>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>PO #</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Date</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Vendor</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Products</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Amount</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
+                      </>
+                    )}
+                    {activeTab === "Approval" && (
+                      <>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>PO #</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Date</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Vendor</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Amount</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Action</th>
+                      </>
+                    )}
+                    {activeTab === "Stock Reconciliation" && (
+                      <>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Category Name</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Item Name</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Actual Stock</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Adjust Stock</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Stock Difference</th>
+                      </>
                     )}
                     {activeTab === "Vendor Management" && (
-                      <th style={{ padding: "16px 24px", fontWeight: 600 }}>Details</th>
+                      <>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Vendor Name</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Contact</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Email</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Address</th>
+                        <th style={{ padding: "16px 24px", fontWeight: 600 }}>Status</th>
+                      </>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {activeTab === "Products Catalog" && products.map(p => (
+                  {activeTab === "Purchase Order" && orders.map(o => (
+                    <tr key={o.id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                      <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{o.orderNumber || o.id?.slice(-6)}</td>
+                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.vendor?.name || "-"}</td>
+                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.items?.length || 0} items</td>
+                      <td style={{ padding: "16px 24px", fontWeight: 600 }}>₹{o.totalAmount || 0}</td>
+                      <td style={{ padding: "16px 24px" }}>
+                        <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: o.status === "RECEIVED" ? "#dcfce7" : o.status === "CANCELLED" ? "#fee2e2" : "#fef3c7", color: o.status === "RECEIVED" ? "#166534" : o.status === "CANCELLED" ? "#991b1b" : "#92400e" }}>{o.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {activeTab === "Purchase Order" && orders.length === 0 && (
+                    <tr><td colSpan="6" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>No purchase orders found.</td></tr>
+                  )}
+
+                  {activeTab === "Approval" && orders.filter(o => o.status === "DRAFT" || o.status === "ORDERED").map(o => (
+                    <tr key={o.id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                      <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{o.orderNumber || o.id?.slice(-6)}</td>
+                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{new Date(o.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{o.vendor?.name || "-"}</td>
+                      <td style={{ padding: "16px 24px", fontWeight: 600 }}>₹{o.totalAmount || 0}</td>
+                      <td style={{ padding: "16px 24px" }}>
+                        <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>Pending</span>
+                      </td>
+                      <td style={{ padding: "16px 24px" }}>
+                        <button style={{ padding: "6px 12px", background: "#10b981", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: "0.8rem", marginRight: 8 }}>Approve</button>
+                        <button style={{ padding: "6px 12px", background: "#ef4444", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: "0.8rem" }}>Reject</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {activeTab === "Approval" && orders.filter(o => o.status === "DRAFT" || o.status === "ORDERED").length === 0 && (
+                    <tr><td colSpan="6" style={{ padding: 32, textAlign: "center", color: "#10b981", fontWeight: 500 }}><CheckCircle size={48} style={{ opacity: 0.5, marginBottom: 16 }} /><br/>No pending approvals.</td></tr>
+                  )}
+
+                  {activeTab === "Stock Reconciliation" && products.map(p => (
                     <tr key={p.id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                      <td style={{ padding: "16px 24px", color: "#64748b" }}>{p.category?.name || "-"}</td>
                       <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{p.name}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b", fontSize: "0.9rem" }}>{p.productType}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b", fontSize: "0.9rem" }}>{p.category?.name || "Uncategorized"}</td>
-                      <td style={{ padding: "16px 24px", color: "#0f172a", fontWeight: 600 }}>{p.currentStock || 0}</td>
-                      <td style={{ padding: "16px 24px", color: "#0f172a" }}>₹{p.sellingPrice}</td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: p.isActive !== false ? "#dcfce7" : "#fee2e2", color: p.isActive !== false ? "#166534" : "#991b1b" }}>
-                          {p.isActive !== false ? "Active" : "Inactive"}
-                        </span>
-                      </td>
+                      <td style={{ padding: "16px 24px", fontWeight: 600, color: "#0f172a" }}>{p.currentStock || 0}</td>
+                      <td style={{ padding: "16px 24px" }}><input type="number" defaultValue={0} style={{ width: 80, padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, textAlign: "center" }} /></td>
+                      <td style={{ padding: "16px 24px", fontWeight: 600, color: "#64748b" }}>0</td>
                     </tr>
                   ))}
-                  {activeTab === "Products Catalog" && products.length === 0 && (
-                     <tr><td colSpan="6" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>No products found. Click "Create Product" to add one.</td></tr>
+                  {activeTab === "Stock Reconciliation" && products.length === 0 && (
+                    <tr><td colSpan="5" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>No products found.</td></tr>
                   )}
 
-                  {activeTab === "Categories" && categories.map(c => (
-                    <tr key={c.id} style={{ borderTop: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{c.name}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b", fontSize: "0.9rem" }}>{c.description || "-"}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b", fontSize: "0.9rem" }}>{c.sortOrder}</td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: c.isActive !== false ? "#dcfce7" : "#fee2e2", color: c.isActive !== false ? "#166534" : "#991b1b" }}>
-                          {c.isActive !== false ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {activeTab === "Categories" && categories.length === 0 && (
-                     <tr><td colSpan="4" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>No categories found. Click "Add Category" to create one.</td></tr>
-                  )}
-
-                  {activeTab === "Stock Ledger" && movements.map(m => (
-                    <tr key={m.id} style={{ borderTop: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "16px 24px", color: "#64748b", fontSize: "0.9rem" }}>{new Date(m.createdAt).toLocaleDateString()} {new Date(m.createdAt).toLocaleTimeString()}</td>
-                      <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{m.product?.name || "Unknown Product"}</td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <span style={{ padding: "4px 8px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600, background: m.movementType === "STOCK_IN" ? "#dcfce7" : m.movementType === "STOCK_OUT" ? "#fee2e2" : "#fef3c7", color: m.movementType === "STOCK_IN" ? "#166534" : m.movementType === "STOCK_OUT" ? "#991b1b" : "#92400e" }}>
-                          {m.movementType.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td style={{ padding: "16px 24px", color: "#0f172a", fontWeight: 600 }}>{m.movementType === "STOCK_IN" ? "+" : "-"}{m.quantity}</td>
-                    </tr>
-                  ))}
-                  {activeTab === "Stock Ledger" && movements.length === 0 && (
-                     <tr><td colSpan="4" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>No stock movements recorded yet.</td></tr>
-                  )}
-
-                  {activeTab === "Low Stock Alerts" && lowStock.map(p => (
-                    <tr key={p.id} style={{ borderTop: "1px solid #e2e8f0", background: "#fef2f2" }}>
-                      <td style={{ padding: "16px 24px", fontWeight: 500, color: "#0f172a" }}>{p.name}</td>
-                      <td style={{ padding: "16px 24px", color: "#64748b", fontSize: "0.9rem" }}>{p.category?.name || "Uncategorized"}</td>
-                      <td style={{ padding: "16px 24px", color: "#dc2626", fontWeight: 700 }}>{p.currentStock || 0}</td>
-                      <td style={{ padding: "16px 24px", color: "#0f172a", fontWeight: 600 }}>{p.minStock || 0}</td>
-                    </tr>
-                  ))}
-                  {activeTab === "Low Stock Alerts" && lowStock.length === 0 && (
-                     <tr><td colSpan="4" style={{ padding: 32, textAlign: "center", color: "#10b981", fontWeight: 500 }}><CheckCircle size={48} style={{ opacity: 0.5, marginBottom: 16 }} /><br/>All products have sufficient stock levels!</td></tr>
-                  )}
-
-                  {activeTab === "Purchase Order" && (
-                     <tr>
-                        <td colSpan="6">
-                          <div style={{ padding: "48px 32px", textAlign: "center" }}>
-                            <Layers size={64} color="#cbd5e1" style={{ marginBottom: 16 }} />
-                            <h2 style={{ margin: "0 0 8px 0", color: "#0f172a" }}>{activeTab} Coming Soon</h2>
-                            <p style={{ color: "#64748b", maxWidth: 400, margin: "0 auto" }}>This module is currently being re-designed and will be available in the next phase of the update.</p>
-                          </div>
-                        </td>
-                     </tr>
+                  {activeTab === "Vendor Management" && (
+                    <tr><td colSpan="5" style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>Vendor management coming soon.</td></tr>
                   )}
                 </tbody>
               </table>

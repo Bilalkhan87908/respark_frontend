@@ -661,11 +661,8 @@ export default function UsersPage() {
                 </div>
 
                 <div className="hub-form-group" style={{ marginBottom: 16 }}>
-                  <label>Designation</label>
-                  <select className="hub-input" value={designationOptions.includes(form.designation) ? form.designation : ""} onChange={e => setForm({ ...form, designation: e.target.value })}>
-                    <option value="">Select designation</option>
-                    {designationOptions.map((designation) => <option key={designation} value={designation}>{designation}</option>)}
-                  </select>
+                  <label>Designation (Job Title)</label>
+                  <input type="text" className="hub-input" value={form.designation} onChange={e => setForm({ ...form, designation: e.target.value })} placeholder="e.g. Senior Stylist, Manager" />
                 </div>
               </div>
 

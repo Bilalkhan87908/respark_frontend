@@ -72,7 +72,7 @@ const COLUMNS = {
   balance_received: ["Date", "Customer", "Invoice #", "Balance Amt", "Mode", "Collected By"],
   gst_returns: ["Month", "Total Sales", "Tax Collected", "Tax Paid", "Net Tax Payable"],
   gst_outwards: ["Invoice #", "Date", "Customer", "Taxable Amt", "Tax Rate", "Tax Amt", "Total"],
-  daily_stock: ["Product", "Category", "Opening Stock", "Received", "Consumed", "Sold", "Closing"],
+  daily_stock: ["SR. NO.", "ITEM NAME", "VARIATION NAME", "CATEGORY NAME", "SKU", "OPENING STOCK", "CURRENT STOCK", "CURRENT ONFLOOR", "UNIT PRICE", "TOTAL STOCK PRICE", "TOTAL ONFLOOR PRICE", "TOTAL PRICE", "STOCK TYPE"],
   stock_transaction: ["Date", "Product", "Type", "Qty", "Staff", "Note"],
   material_received: ["Date", "Product", "Vendor", "Qty", "Unit Cost", "Total Cost", "PO #"],
   minimum_stock: ["SR. NO.", "CATEGORY NAME", "ITEM NAME", "VARIATION NAME", "STORE SKU", "CURRENT STOCK", "MINIMUM QUANTITY"],

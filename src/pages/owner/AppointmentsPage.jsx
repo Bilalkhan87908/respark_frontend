@@ -2,20 +2,43 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Search, X, ArrowLeft } from "lucide-react";
 import { api } from "../../api/client";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
 import { formatApiError } from "../../utils/apiError";
 import PageLoader from "../../components/PageLoader";
+import AppointmentCheckoutModal from "./AppointmentCheckoutModal";
+
+const APPOINTMENT_START_HOUR = 9;
+const APPOINTMENT_END_HOUR = 21;
+const APPOINTMENT_SLOT_MINUTES = 15;
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 15;
 
 const TIME_SLOTS = [];
-for (let h = 9; h <= 21; h++) {
+for (let h = APPOINTMENT_START_HOUR; h <= APPOINTMENT_END_HOUR; h++) {
   const ampm = h >= 12 ? "PM" : "AM";
   const hour12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
   const hourText = String(hour12).padStart(2, "0");
-  TIME_SLOTS.push(`${hourText}:00 ${ampm}`);
-  TIME_SLOTS.push(`${hourText}:30 ${ampm}`);
+  [0, 15, 30, 45].forEach((minutes) => {
+    if (h === APPOINTMENT_END_HOUR && minutes > 45) return;
+    TIME_SLOTS.push(`${hourText}:${String(minutes).padStart(2, "0")} ${ampm}`);
+  });
 }
+const TIME_SLOT_INDEX = new Map(TIME_SLOTS.map((slot, index) => [slot, index]));
 
 const emptyItem = { serviceId: "", staffUserIds: [], startAt: "", endAt: "", notes: "" };
 const toApiDateTime = (value) => (value ? new Date(value).toISOString() : "");
+
+const addMinutesToLocalInput = (value, minutes) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setMinutes(date.getMinutes() + Number(minutes || 0));
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+};
 
 const formatTimeForSelect = (isoString) => {
   if (!isoString) return "";
@@ -51,10 +74,34 @@ const combineDateAndTime = (baseDate, timeString) => {
   return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 };
 
+const getLocalDateKey = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+const getStaffIdsForAppointment = (row) => {
+  const staffIds = new Set();
+  (row.items || []).forEach((item) => {
+    (item.assignedStaff || []).forEach((assignment) => {
+      if (assignment?.userSalonId) staffIds.add(assignment.userSalonId);
+    });
+  });
+  if (row.primaryStaffUserId) {
+    staffIds.add(row.primaryStaffUserId);
+  }
+  return Array.from(staffIds);
+};
+
 export default function AppointmentsPage() {
   const navigate = useNavigate();
+  const { formatMoney } = useSalonSettings();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingAppointmentId, setEditingAppointmentId] = useState(null);
+  const [checkoutAppointment, setCheckoutAppointment] = useState(null);
   const [rows, setRows] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
@@ -66,6 +113,8 @@ export default function AppointmentsPage() {
   const [status, setStatus] = useState({ error: "", success: "" });
   const [guestSearchInput, setGuestSearchInput] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [form, setForm] = useState({
     customerId: "",
     branchId: "",
@@ -134,8 +183,8 @@ export default function AppointmentsPage() {
           if (earliestHour >= 9 && earliestHour <= 20) {
             const calendarBody = document.querySelector('.sp-calendar-body');
             if (calendarBody) {
-              const rowIndex = (earliestHour - 9) * 2;
-              const scrollAmount = rowIndex * 60;
+              const rowIndex = (earliestHour - APPOINTMENT_START_HOUR) * (60 / APPOINTMENT_SLOT_MINUTES);
+              const scrollAmount = rowIndex * 36;
               calendarBody.scrollTo({ top: Math.max(0, scrollAmount - 50), behavior: 'smooth' });
             }
           }
@@ -173,15 +222,19 @@ export default function AppointmentsPage() {
 
     const startDate = new Date(currentDate);
     startDate.setHours(hours, Number.parseInt(minutes, 10), 0, 0);
-    const endDate = new Date(startDate.getTime() + 30 * 60000);
+    const endDate = new Date(startDate.getTime() + DEFAULT_APPOINTMENT_DURATION_MINUTES * 60000);
 
     const startAtStr = new Date(startDate.getTime() - (startDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
     const endAtStr = new Date(endDate.getTime() - (endDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
     const staffBranchId = staffUsers.find((staff) => staff.id === staffId)?.branchId || "";
 
+    const defaultBranchId = branches.find(b => b.name.toLowerCase().includes("main"))?.id || branches[0]?.id || "";
+
+    setEditMode(false);
+    setEditingAppointmentId(null);
     setForm({
       customerId: "",
-      branchId: staffBranchId || branches[0]?.id || "",
+      branchId: staffBranchId || defaultBranchId,
       bookingChannel: "MANUAL",
       title: "Appointment",
       startAt: startAtStr,
@@ -197,6 +250,56 @@ export default function AppointmentsPage() {
     setIsCreateModalOpen(true);
   };
 
+  const handleAppointmentClick = (event, appt) => {
+    event.stopPropagation();
+    
+    const toLocalInput = (dateStr) => {
+      if (!dateStr) return "";
+      const d = new Date(dateStr);
+      return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+    };
+
+    // Format items from backend to form state
+    const formattedItems = (appt.items || []).map((item) => {
+      const startAt = toLocalInput(item.startAt);
+      const service = services.find((srv) => srv.id === item.serviceId);
+      const endAt = toLocalInput(item.endAt) || (service && startAt ? addMinutesToLocalInput(startAt, service.durationMin || DEFAULT_APPOINTMENT_DURATION_MINUTES) : "");
+      return {
+        serviceId: item.serviceId,
+        staffUserIds: (item.assignedStaff || []).map((assignment) => assignment.userSalonId),
+        startAt,
+        endAt,
+        notes: item.notes || ""
+      };
+    });
+
+    // Ensure there is at least one item
+    if (formattedItems.length === 0) {
+      formattedItems.push({ ...emptyItem });
+    }
+
+    setGuestSearchInput(appt.customer?.name || "");
+    setForm({
+      customerId: appt.customerId || "",
+      branchId: appt.branchId || branches[0]?.id || "",
+      bookingChannel: appt.bookingChannel || "MANUAL",
+      title: appt.title || "Appointment",
+      startAt: toLocalInput(appt.startAt),
+      endAt: toLocalInput(appt.endAt),
+      notes: appt.notes || "",
+      isWalkIn: Boolean(appt.isWalkIn),
+      items: formattedItems,
+      smsToGuest: true,
+      smsToOwner: false,
+      status: appt.status || "PENDING",
+      convertedInvoiceId: appt.convertedInvoiceId || null
+    });
+    setEditMode(true);
+    setEditingAppointmentId(appt.id);
+    setServiceSearch("");
+    setIsCreateModalOpen(true);
+  };
+
   useEffect(() => {
     document.body.style.overflow = isCreateModalOpen ? "hidden" : "";
     return () => {
@@ -204,7 +307,7 @@ export default function AppointmentsPage() {
     };
   }, [isCreateModalOpen]);
 
-  const submit = async (event) => {
+  const handleFormSubmit = (event) => {
     event.preventDefault();
     setStatus({ error: "", success: "" });
     const activeItems = form.items.filter((item) => item.serviceId && item.staffUserIds?.length && item.startAt && item.endAt);
@@ -220,7 +323,11 @@ export default function AppointmentsPage() {
       setStatus({ error: "Kam az kam aik valid service item add karo.", success: "" });
       return;
     }
+    setShowConfirmModal(true);
+  };
 
+  const handleConfirmSubmit = async () => {
+    const activeItems = form.items.filter((item) => item.serviceId && item.staffUserIds?.length && item.startAt && item.endAt);
     try {
       const payloadItems = activeItems.map((item) => ({
         ...item,
@@ -236,12 +343,59 @@ export default function AppointmentsPage() {
         endAt: sortedEnds[sortedEnds.length - 1],
         primaryStaffUserId: payloadItems[0]?.staffUserIds?.[0] || form.items[0]?.staffUserIds?.[0] || ""
       };
-      await api.post("/owner/appointments", payload);
-      setStatus({ error: "", success: "Appointment created." });
+      if (editMode) {
+        await api.patch(`/owner/appointments/${editingAppointmentId}`, payload);
+        setStatus({ error: "", success: "Appointment updated successfully." });
+      } else {
+        await api.post("/owner/appointments", payload);
+        setStatus({ error: "", success: "Appointment created." });
+      }
+      setIsCreateModalOpen(false);
+      setShowConfirmModal(false);
+      await loadAppointments();
+    } catch (error) {
+      setStatus({ error: formatApiError(error, editMode ? "Could not update appointment" : "Could not create appointment"), success: "" });
+      setShowConfirmModal(false);
+    }
+  };
+  const handleCheckIn = async (event) => {
+    event.preventDefault();
+    if (!editMode || !editingAppointmentId) return;
+    try {
+      await api.patch(`/owner/appointments/${editingAppointmentId}/status`, { status: "CHECKED_IN" });
+      setStatus({ error: "", success: "Appointment checked in." });
       setIsCreateModalOpen(false);
       await loadAppointments();
     } catch (error) {
-      setStatus({ error: formatApiError(error, "Could not create appointment"), success: "" });
+      setStatus({ error: formatApiError(error, "Could not check in appointment"), success: "" });
+    }
+  };
+
+  const handleGenerateBill = async (event) => {
+    event.preventDefault();
+    if (!editMode || !editingAppointmentId) return;
+    
+    if (form.convertedInvoiceId) {
+      navigate(`/admin/pos-dashboard/${form.convertedInvoiceId}?from=/admin/appointments`);
+      return;
+    }
+    
+    const appt = rows.find(r => r.id === editingAppointmentId);
+    if (appt) {
+      setCheckoutAppointment(appt);
+      setIsCreateModalOpen(false);
+    }
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!editMode || !editingAppointmentId) return;
+    try {
+      await api.patch(`/owner/appointments/${editingAppointmentId}/status`, { status: "CANCELLED", note: "Cancelled from appointment panel" });
+      setStatus({ error: "", success: "Appointment cancelled." });
+      setIsCreateModalOpen(false);
+      await loadAppointments();
+    } catch (error) {
+      setStatus({ error: formatApiError(error, "Could not cancel appointment"), success: "" });
     }
   };
 
@@ -252,30 +406,16 @@ export default function AppointmentsPage() {
 
   const formatDate = (date) => date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-");
 
-  const getAppointmentsForSlot = (staffId, slotTime) => {
-    const [time, modifier] = slotTime.split(" ");
-    let [hours, minutes] = time.split(":");
-    hours = Number.parseInt(hours, 10);
-    if (hours === 12 && modifier === "AM") hours = 0;
-    if (hours < 12 && modifier === "PM") hours += 12;
-
-    const slotStart = new Date(currentDate);
-    slotStart.setHours(hours, Number.parseInt(minutes, 10), 0, 0);
-    const slotEnd = new Date(slotStart.getTime() + 30 * 60000); // 30 mins slot
-
-    return rows.filter((row) => {
-      const apptStart = new Date(row.startAt);
-      const apptEnd = new Date(row.endAt);
-      const hasStaff = row.items?.some((item) => (item.assignedStaff || []).some((assigned) => assigned.userSalonId === staffId)) || row.primaryStaffUserId === staffId;
-      return hasStaff && apptStart < slotEnd && apptEnd > slotStart;
-    });
-  };
-
   const handleUpdateItem = (index, field, value) => {
     const nextItems = [...form.items];
     const nextItem = { ...nextItems[index], [field]: value };
     if (field === "serviceId") {
       nextItem.staffUserIds = [];
+      if (value && !nextItem.endAt) {
+        nextItem.endAt = nextItem.startAt ? addMinutesToLocalInput(nextItem.startAt, getServiceDurationMin(value)) : "";
+      } else if (!value) {
+        nextItem.endAt = "";
+      }
     }
     nextItems[index] = nextItem;
     const nextStarts = nextItems.map((item) => item.startAt).filter(Boolean).sort();
@@ -288,13 +428,43 @@ export default function AppointmentsPage() {
     }));
   };
 
+  const handleAddServiceFromSearch = (service) => {
+    setForm((current) => {
+      const nextItems = [...current.items];
+      // Check if there is an empty item we can fill
+      const emptyIndex = nextItems.findIndex(item => !item.serviceId);
+      const serviceDuration = getServiceDurationMin(service.id);
+      
+      if (emptyIndex >= 0) {
+        const existing = { ...nextItems[emptyIndex], serviceId: service.id, staffUserIds: [] };
+        nextItems[emptyIndex] = {
+          ...existing,
+          endAt: existing.startAt ? addMinutesToLocalInput(existing.startAt, serviceDuration) : existing.endAt || ""
+        };
+      } else {
+        // Append a new item
+        const startAt = current.startAt || "";
+        nextItems.push({
+          ...emptyItem,
+          serviceId: service.id,
+          startAt,
+          endAt: startAt ? addMinutesToLocalInput(startAt, serviceDuration) : current.endAt || ""
+        });
+      }
+
+      return { ...current, items: nextItems };
+    });
+    setServiceSearch("");
+    setShowServiceDropdown(false);
+  };
+
   const filteredServices = useMemo(() => {
     let list = services;
     if (form.branchId) {
       list = list.filter((service) => !service.branchId || service.branchId === form.branchId);
     }
     if (serviceGenderFilter !== "ALL") {
-      list = list.filter((service) => !service.gender || service.gender === "UNISEX" || service.gender === serviceGenderFilter);
+      list = list.filter((service) => !service.gender || ["UNISEX", "BOTH", "ALL"].includes(service.gender.toUpperCase()) || service.gender.toUpperCase() === serviceGenderFilter);
     }
     if (serviceSearch.trim()) {
       const query = serviceSearch.trim().toLowerCase();
@@ -331,6 +501,56 @@ export default function AppointmentsPage() {
     return staffUsers;
   }, [staffUsers]);
 
+  const appointmentsByStaffStartSlot = useMemo(() => {
+    const byStaff = new Map();
+    rows.forEach((row) => {
+      const startLabel = formatTimeForSelect(row.startAt);
+      const startIndex = TIME_SLOT_INDEX.get(startLabel);
+      if (startIndex === undefined) return;
+      const endLabel = formatTimeForSelect(row.endAt);
+      const endIndex = TIME_SLOT_INDEX.get(endLabel);
+      let durationSlots;
+      if (endIndex !== undefined && endIndex > startIndex) {
+        durationSlots = endIndex - startIndex;
+      } else {
+        const start = new Date(row.startAt);
+        const end = new Date(row.endAt);
+        durationSlots = Math.max(1, Math.ceil(Math.max(0, end.getTime() - start.getTime()) / (APPOINTMENT_SLOT_MINUTES * 60000)));
+      }
+      getStaffIdsForAppointment(row).forEach((staffId) => {
+        if (!byStaff.has(staffId)) byStaff.set(staffId, new Map());
+        const slotMap = byStaff.get(staffId);
+        const existing = slotMap.get(startIndex) || [];
+        existing.push({ ...row, durationSlots });
+        slotMap.set(startIndex, existing);
+      });
+    });
+    return byStaff;
+  }, [rows]);
+
+  const serviceDurationById = useMemo(() => {
+    return new Map(
+      services.map((service) => [
+        service.id,
+        Number(service.durationMin || DEFAULT_APPOINTMENT_DURATION_MINUTES)
+      ])
+    );
+  }, [services]);
+
+  const getServiceDurationMin = (serviceId) => serviceDurationById.get(serviceId) || DEFAULT_APPOINTMENT_DURATION_MINUTES;
+
+  const applyServiceDurationToItem = (item, serviceId = item.serviceId) => {
+    const nextServiceId = serviceId || item.serviceId || "";
+    const nextStartAt = item.startAt || "";
+    const durationMin = getServiceDurationMin(nextServiceId);
+    const nextEndAt = nextStartAt ? addMinutesToLocalInput(nextStartAt, durationMin) : item.endAt || "";
+    return {
+      ...item,
+      serviceId: nextServiceId,
+      endAt: nextEndAt
+    };
+  };
+
   const totalServiceCount = useMemo(() => {
     return form.items.reduce((sum, item) => {
       const service = services.find((row) => row.id === item.serviceId);
@@ -343,7 +563,7 @@ export default function AppointmentsPage() {
       <style>{`
         .calendar-page {
           background: #f8fafc;
-          height: 100vh;
+          height: calc(100vh - 108px);
           display: flex;
           flex-direction: column;
         }
@@ -351,55 +571,64 @@ export default function AppointmentsPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 12px 24px;
+          padding: 7px 16px;
           background: white;
           border-bottom: 1px solid #e2e8f0;
+          flex-shrink: 0;
         }
         .date-navigator {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 8px;
           font-weight: 600;
           color: #0f172a;
+          font-size: 0.85rem;
         }
         .nav-btn {
           background: white;
           border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          padding: 6px 10px;
+          border-radius: 5px;
+          padding: 4px 8px;
           cursor: pointer;
           display: flex;
           align-items: center;
           color: #3b82f6;
           font-weight: 600;
-          transition: all 0.2s;
+          font-size: 0.78rem;
+          min-height: unset;
+          box-shadow: none;
+          transition: background 150ms;
         }
-        .nav-btn:hover { background: #eff6ff; }
+        .nav-btn:hover { background: #eff6ff; transform: none; filter: none; }
         .nav-icon {
           background: white;
           border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          padding: 6px;
+          border-radius: 5px;
+          padding: 4px;
           cursor: pointer;
           color: #475569;
           display: flex;
+          min-height: unset;
+          box-shadow: none;
         }
-        .nav-icon:hover { background: #f8fafc; }
+        .nav-icon:hover { background: #f8fafc; transform: none; filter: none; }
         .counters-row {
           display: flex;
-          gap: 8px;
+          gap: 6px;
           flex-wrap: wrap;
         }
         .counter-badge {
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 6px 12px;
-          border-radius: 8px;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 6px;
           border: 1px solid #e2e8f0;
-          font-size: 0.85rem;
+          font-size: 0.75rem;
           font-weight: 500;
           color: #475569;
+          min-height: unset;
+          box-shadow: none;
         }
         .counter-badge.active {
           background: #3b82f6;
@@ -409,9 +638,10 @@ export default function AppointmentsPage() {
         .counter-val {
           background: white;
           color: #0f172a;
-          padding: 2px 8px;
-          border-radius: 12px;
+          padding: 1px 6px;
+          border-radius: 10px;
           font-weight: 700;
+          font-size: 0.72rem;
         }
         .calendar-grid-wrapper {
           flex-grow: 1;
@@ -423,22 +653,22 @@ export default function AppointmentsPage() {
           width: 100%;
           border-collapse: collapse;
           table-layout: fixed;
-          min-width: 1200px;
+          min-width: 900px;
         }
         .calendar-th {
           position: sticky;
           top: 0;
           background: #f1f5f9;
-          padding: 12px;
+          padding: 6px 8px;
           text-align: center;
           font-weight: 600;
-          font-size: 0.9rem;
+          font-size: 0.72rem;
           color: #475569;
           border: 1px solid #e2e8f0;
           z-index: 10;
         }
         .time-col-header {
-          width: 80px;
+          width: 60px;
           background: #f8fafc;
           z-index: 11;
           left: 0;
@@ -448,37 +678,38 @@ export default function AppointmentsPage() {
           left: 0;
           background: #f8fafc;
           border: 1px solid #e2e8f0;
-          padding: 8px;
+          padding: 4px 6px;
           text-align: center;
-          font-size: 0.8rem;
+          font-size: 0.68rem;
           font-weight: 600;
           color: #64748b;
           z-index: 5;
+          white-space: nowrap;
         }
         .calendar-cell {
           border: 1px solid #f1f5f9;
-          height: 50px;
+          height: 30px;
           position: relative;
           cursor: pointer;
         }
         .calendar-cell:hover { background: #f8fafc; }
         .appt-stack {
           position: absolute;
-          inset: 2px;
+          inset: 1px;
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 1px;
           z-index: 2;
         }
         .appt-block {
           background: #eff6ff;
-          border-left: 4px solid #3b82f6;
-          border-radius: 4px;
-          padding: 4px 8px;
-          font-size: 0.75rem;
+          border-left: 3px solid #3b82f6;
+          border-radius: 3px;
+          padding: 2px 5px;
+          font-size: 0.65rem;
           color: #1e3a8a;
           overflow: hidden;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          box-shadow: none;
           min-height: 0;
         }
         .appt-block.more {
@@ -498,28 +729,29 @@ export default function AppointmentsPage() {
           top: 0;
           right: 0;
           bottom: 0;
-          width: min(450px, 100vw);
+          width: min(360px, 100vw);
           max-width: 100vw;
           background: #f8fafc;
           z-index: 1050;
           display: flex;
           flex-direction: column;
-          box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+          box-shadow: none;
           transform: translateX(100%);
-          animation: slideIn 0.3s forwards;
+          animation: slideIn 0.25s forwards;
         }
         @keyframes slideIn { to { transform: translateX(0); } }
         .sp-header {
           display: flex;
           align-items: center;
-          gap: 16px;
-          padding: 16px 24px;
+          gap: 10px;
+          padding: 10px 16px;
           background: white;
           border-bottom: 1px solid #e2e8f0;
+          flex-shrink: 0;
         }
         .sp-header h3 {
           margin: 0;
-          font-size: 1.1rem;
+          font-size: 0.92rem;
           color: #ef4444;
           font-weight: 600;
         }
@@ -527,31 +759,102 @@ export default function AppointmentsPage() {
           background: #f1f5f9;
           border: none;
           border-radius: 50%;
-          padding: 6px;
+          padding: 4px;
           cursor: pointer;
           color: #475569;
           display: flex;
           align-items: center;
           justify-content: center;
+          min-height: unset;
+          box-shadow: none;
         }
         .sp-body {
           flex-grow: 1;
           overflow-y: auto;
-          padding: 20px 24px;
+          padding: 12px 16px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 10px;
         }
         .sp-card {
           background: white;
-          border-radius: 12px;
+          border-radius: 8px;
           border: 1px solid #e2e8f0;
-          padding: 20px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+          padding: 12px 14px;
+          box-shadow: none;
         }
         .sp-card-title {
-          font-size: 1rem;
+          font-size: 0.78rem;
           color: #64748b;
+          margin-top: 0;
+          margin-bottom: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .sp-input-group {
+          position: relative;
+          margin-bottom: 10px;
+        }
+        .sp-input {
+          width: 100%;
+          padding: 6px 10px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          font-size: 0.82rem;
+          box-sizing: border-box;
+          background: white;
+          min-height: unset;
+        }
+        .sp-input:focus { border-color: #3b82f6; outline: none; }
+        .sp-select {
+          width: 100%;
+          padding: 6px 10px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          font-size: 0.82rem;
+          appearance: none;
+          background: white;
+          box-sizing: border-box;
+          min-height: unset;
+        }
+        .sp-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .sp-grid-2 > * { min-width: 0; }
+        .sp-time-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .sp-time-grid > * { min-width: 0; }
+        .sp-footer {
+          padding: 10px 16px;
+          background: white;
+          border-top: 1px solid #e2e8f0;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .sp-footer-checks {
+          display: flex;
+          gap: 16px;
+          align-items: center;
+          justify-content: flex-start;
+          font-size: 0.78rem;
+          font-weight: 500;
+          color: #0f172a;
+          flex-wrap: wrap;
+        }
+        .sp-btn-primary {
+          width: 100%;
+          padding: 9px;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 0.88rem;
+          font-weight: 600;
+          cursor: pointer;
+          min-height: unset;
+          box-shadow: none;
+        }
+        .sp-btn-primary:hover { background: #2563eb; transform: none; filter: none; }
           margin-top: 0;
           margin-bottom: 16px;
           display: flex;
@@ -664,7 +967,7 @@ export default function AppointmentsPage() {
           background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
           color: #fff;
           border-color: #2563eb;
-          box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+          box-shadow: none;
         }
         .gender-chip:hover {
           transform: translateY(-1px);
@@ -700,35 +1003,85 @@ export default function AppointmentsPage() {
             </tr>
           </thead>
           <tbody>
-            {TIME_SLOTS.map((slot) => (
-              <tr key={slot}>
-                <td className="calendar-time-cell">{slot}</td>
-                {filteredStaffUsers.map((staff) => {
-                  const appts = getAppointmentsForSlot(staff.id, slot);
-                  const visibleAppts = appts.slice(0, 2);
-                  const hiddenCount = Math.max(appts.length - visibleAppts.length, 0);
-                  return (
-                    <td key={`${slot}-${staff.id}`} className="calendar-cell" onClick={() => !appts.length && handleCellClick(staff.id, slot)}>
-                      {appts.length > 0 && (
-                        <div className="appt-stack">
-                          {visibleAppts.map((appt) => (
-                            <div key={appt.id} className="appt-block" onClick={(event) => { event.stopPropagation(); navigate(`/admin/appointments/${appt.id}`); }}>
-                              <div style={{ fontWeight: 600 }}>{appt.customer?.name || "Walk-in"}</div>
-                              <div>{appt.items?.[0]?.service?.name || "Service"}</div>
-                            </div>
-                          ))}
-                          {hiddenCount > 0 && (
-                            <div className="appt-block more" onClick={(event) => event.stopPropagation()}>
-                              +{hiddenCount} more
-                            </div>
-                          )}
+            {(() => {
+              const coveredUntil = new Map();
+              return TIME_SLOTS.map((slot, slotIndex) => (
+                <tr key={slot}>
+                  <td className="calendar-time-cell">{slot}</td>
+                  {filteredStaffUsers.map((staff) => {
+                    const nextCoveredIndex = coveredUntil.get(staff.id) || 0;
+                    if (slotIndex < nextCoveredIndex) return null;
+
+                    const startingAppts = appointmentsByStaffStartSlot.get(staff.id)?.get(slotIndex) || [];
+                    if (!startingAppts.length) {
+                      return (
+                        <td
+                          key={`${slot}-${staff.id}`}
+                          className="calendar-cell"
+                          onClick={() => handleCellClick(staff.id, slot)}
+                        />
+                      );
+                    }
+
+                    const rowSpan = Math.max(
+                      1,
+                      ...startingAppts.map((appt) => appt.durationSlots || 1)
+                    );
+                    coveredUntil.set(staff.id, slotIndex + rowSpan);
+
+                    return (
+                      <td
+                        key={`${slot}-${staff.id}`}
+                        className="calendar-cell"
+                        rowSpan={rowSpan}
+                      >
+                        <div className="appt-stack" style={{ height: "100%" }}>
+                          {startingAppts.map((appt) => {
+                            let bg = "#eff6ff";
+                            let border = "#3b82f6";
+                            let text = "#1e3a8a";
+
+                            if (appt.status === "COMPLETED") {
+                              bg = "#ecfccb"; border = "#84cc16"; text = "#3f6212";
+                            } else if (appt.status === "CHECKED_IN") {
+                              bg = "#ffedd5"; border = "#f97316"; text = "#7c2d12";
+                            } else if (appt.status === "CANCELLED") {
+                              bg = "#fee2e2"; border = "#ef4444"; text = "#7f1d1d";
+                            }
+
+                            const totalDurationMin = Math.max(
+                              APPOINTMENT_SLOT_MINUTES,
+                              Number(appt.durationSlots || 1) * APPOINTMENT_SLOT_MINUTES
+                            );
+
+                            return (
+                              <div
+                                key={appt.id}
+                                className="appt-block"
+                                style={{
+                                  background: bg,
+                                  borderLeftColor: border,
+                                  color: text,
+                                  minHeight: `${Math.max(1, rowSpan) * 28 - 4}px`
+                                }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleAppointmentClick(event, appt);
+                                }}
+                                title={`${appt.customer?.name || "Walk-in"} • ${appt.items?.[0]?.service?.name || "Service"} • ${totalDurationMin} min`}
+                              >
+                                <div style={{ fontWeight: 600 }}>{appt.customer?.name || "Walk-in"}</div>
+                                <div>{appt.items?.[0]?.service?.name || "Service"}</div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ));
+            })()}
           </tbody>
         </table>
       </div>
@@ -738,15 +1091,15 @@ export default function AppointmentsPage() {
           <div className="slide-panel" onClick={(event) => event.stopPropagation()}>
             <div className="sp-header">
               <button className="sp-close" type="button" onClick={() => setIsCreateModalOpen(false)}><ArrowLeft size={18} /></button>
-              <h3>Create Appointment</h3>
+              <h3>{editMode ? "Update Services" : "Create Appointment"}</h3>
             </div>
-            <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflow: "hidden" }}>
+            <form onSubmit={handleFormSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflow: "hidden" }}>
               <div className="sp-body" ref={spBodyRef}>
                 {status.error && <div style={{ color: "#ef4444", padding: 12, background: "#fef2f2", borderRadius: 8 }}>{status.error}</div>}
                 {status.success && <div style={{ color: "#10b981", padding: 12, background: "#ecfdf5", borderRadius: 8 }}>{status.success}</div>}
 
                 <div className="sp-card">
-                  <h4 className="sp-card-title">1. Guest Details <button className="add-link" type="button" onClick={() => navigate("/admin/customers")}>Add Guest +</button></h4>
+                  <h4 className="sp-card-title">1. Guest Details {editMode && form.customerId && <button className="add-link" type="button" onClick={() => navigate(`/admin/customers/${form.customerId}`)}>Guest History</button>}</h4>
                   <div className="sp-input-group">
                     <select className="sp-input" value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })} required>
                       <option value="">Select Branch</option>
@@ -776,7 +1129,7 @@ export default function AppointmentsPage() {
                       onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
                     />
                     {showCustomerDropdown && guestSearchInput && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "white", border: "1px solid #e2e8f0", borderRadius: "8px", marginTop: "4px", maxHeight: "250px", overflowY: "auto", zIndex: 50, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" }}>
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "white", border: "1px solid #e2e8f0", borderRadius: "8px", marginTop: "4px", maxHeight: "250px", overflowY: "auto", zIndex: 50, boxShadow: "none" }}>
                         {customers.filter(c => c.name?.toLowerCase().includes(guestSearchInput.toLowerCase()) || c.phone?.includes(guestSearchInput)).map((c) => (
                           <div 
                             key={c.id} 
@@ -826,14 +1179,36 @@ export default function AppointmentsPage() {
                     >
                       all
                     </button>
-                    <input
-                      type="text"
-                      className="sp-input"
-                      placeholder="Search Service By Name"
-                      value={serviceSearch}
-                      onChange={(event) => setServiceSearch(event.target.value)}
-                      style={{ flex: "1 1 220px" }}
-                    />
+                    <div style={{ flex: "1 1 220px", position: "relative" }}>
+                      <input
+                        type="text"
+                        className="sp-input"
+                        placeholder="Search Service By Name"
+                        value={serviceSearch}
+                        onChange={(event) => { setServiceSearch(event.target.value); setShowServiceDropdown(true); }}
+                        onFocus={() => setShowServiceDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowServiceDropdown(false), 200)}
+                        style={{ width: "100%" }}
+                      />
+                      {showServiceDropdown && serviceSearch && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "white", border: "1px solid #e2e8f0", borderRadius: "8px", marginTop: "4px", maxHeight: "250px", overflowY: "auto", zIndex: 50, boxShadow: "none" }}>
+                          {filteredServices.length === 0 ? (
+                            <div style={{ padding: "10px 14px", color: "#64748b", fontSize: 13 }}>No services found</div>
+                          ) : (
+                            filteredServices.map((s) => (
+                              <div 
+                                key={s.id} 
+                                style={{ padding: "10px 14px", borderBottom: "1px solid #f1f5f9", cursor: "pointer", fontSize: 14 }}
+                                onMouseDown={() => handleAddServiceFromSearch(s)}
+                              >
+                                <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: 2 }}>{s.name}</div>
+                                <div style={{ color: "#64748b", fontSize: 12 }}>{s.category?.name || "Uncategorized"} - {formatMoney(s.price)}</div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {form.items.map((item, idx) => (
                     <div key={idx} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: "1px dashed #e2e8f0" }}>
@@ -845,7 +1220,7 @@ export default function AppointmentsPage() {
                             <optgroup key={group.title} label={`${group.title} ${serviceGenderFilter !== "ALL" ? `(${serviceGenderFilter === "MALE" ? "M" : "F"})` : ""}`}>
                               {group.items.map((service) => (
                                 <option key={service.id} value={service.id}>
-                                  {service.name} (Rs {service.price})
+                                  {service.name} ({formatMoney(service.price)})
                                 </option>
                               ))}
                             </optgroup>
@@ -873,14 +1248,26 @@ export default function AppointmentsPage() {
                           <label style={{ fontSize: "0.8rem", color: "#94a3b8", display: "block", marginBottom: 4 }}>From Time</label>
                           <select className="sp-input" value={item.startAt ? formatTimeForSelect(item.startAt) : ""} onChange={(event) => handleUpdateItem(idx, "startAt", combineDateAndTime(currentDate, event.target.value))} required>
                             <option value="">Select Time</option>
-                            {TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                            {TIME_SLOTS.filter(slot => {
+                              if (!item.endAt) return true;
+                              const endIdx = TIME_SLOT_INDEX.get(formatTimeForSelect(item.endAt)) ?? TIME_SLOTS.length;
+                              const slotIdx = TIME_SLOT_INDEX.get(slot) ?? 0;
+                              return slotIdx < endIdx;
+                            }).map(slot => <option key={slot} value={slot}>{slot}</option>)}
                           </select>
                         </div>
                         <div>
                           <label style={{ fontSize: "0.8rem", color: "#94a3b8", display: "block", marginBottom: 4 }}>To Time</label>
                           <select className="sp-input" value={item.endAt ? formatTimeForSelect(item.endAt) : ""} onChange={(event) => handleUpdateItem(idx, "endAt", combineDateAndTime(currentDate, event.target.value))} required disabled={!item.startAt}>
                             <option value="">Select Time</option>
-                            {TIME_SLOTS.map(slot => <option key={slot} value={slot}>{slot}</option>)}
+                            {TIME_SLOTS.filter(slot => {
+                              if (!item.startAt) return true;
+                              const startIdx = TIME_SLOT_INDEX.get(formatTimeForSelect(item.startAt)) ?? 0;
+                              const slotIdx = TIME_SLOT_INDEX.get(slot) ?? 0;
+                              if (slotIdx <= startIdx) return false;
+                              if (slotIdx > startIdx + 8) return false;
+                              return true;
+                            }).map(slot => <option key={slot} value={slot}>{slot}</option>)}
                           </select>
                         </div>
                       </div>
@@ -897,7 +1284,7 @@ export default function AppointmentsPage() {
                   </button>
 
                   <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, fontWeight: 700, fontSize: "1.1rem" }}>
-                    Total Rs {totalServiceCount}
+                    Total {formatMoney(totalServiceCount)}
                   </div>
                 </div>
 
@@ -914,15 +1301,65 @@ export default function AppointmentsPage() {
               </div>
 
               <div className="sp-footer">
-                <div className="sp-footer-checks">
-                  <label style={{ display: "flex", gap: 6 }}><input type="checkbox" checked={form.smsToGuest} onChange={(event) => setForm({ ...form, smsToGuest: event.target.checked })} /> Confirmation Sms</label>
-                  <label style={{ display: "flex", gap: 6 }}><input type="checkbox" checked={form.smsToOwner} onChange={(event) => setForm({ ...form, smsToOwner: event.target.checked })} /> Sms To Owner</label>
-                </div>
-                <button type="submit" className="sp-btn-primary">Create</button>
+                {!editMode && (
+                  <div className="sp-footer-checks">
+                    <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer" }}>
+                      <input type="checkbox" className="styled-checkbox" checked={form.smsToGuest} onChange={(event) => setForm({ ...form, smsToGuest: event.target.checked })} />
+                      Confirmation Sms
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "0.8rem", fontWeight: 500, color: "#334155", cursor: "pointer" }}>
+                      <input type="checkbox" className="styled-checkbox" checked={form.smsToOwner} onChange={(event) => setForm({ ...form, smsToOwner: event.target.checked })} />
+                      Sms To Owner
+                    </label>
+                  </div>
+                )}
+                {editMode ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <button type="submit" className="sp-btn-primary" style={{ flex: 1 }}>Update</button>
+                      {form.status !== "CANCELLED" && (
+                        <button type="button" className="sp-btn-primary" style={{ flex: 1, background: "white", color: "#ef4444", border: "1px solid #ef4444" }} onClick={handleCancelAppointment}>Cancel Appointment</button>
+                      )}
+                    </div>
+                    {form.status !== "CHECKED_IN" && form.status !== "COMPLETED" && (
+                      <button type="button" className="sp-btn-primary" style={{ background: "#f97316", borderColor: "#f97316" }} onClick={handleCheckIn}>Check In</button>
+                    )}
+                    <button type="button" className="sp-btn-primary" style={{ background: "#10b981", borderColor: "#10b981" }} onClick={handleGenerateBill}>
+                      {form.convertedInvoiceId ? "View Bill" : "Generate Bill"}
+                    </button>
+                  </div>
+                ) : (
+                  <button type="submit" className="sp-btn-primary">Create</button>
+                )}
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {showConfirmModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 450, boxShadow: "none" }}>
+            <h3 style={{ color: "#3b82f6", marginTop: 0, marginBottom: 16, fontSize: "1.1rem", fontWeight: 600 }}>{editMode ? "Confirm Update" : "Create & Confirm Appointment"}</h3>
+            <p style={{ color: "#475569", fontSize: "0.95rem", marginBottom: 24 }}>{editMode ? "Are you sure you want to update these services?" : "Are you sure, you want to create & confirm an appointment?"}</p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button type="button" onClick={() => setShowConfirmModal(false)} style={{ padding: "8px 20px", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", borderRadius: 6, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseOver={(e) => e.target.style.background = "#eff6ff"} onMouseOut={(e) => e.target.style.background = "white"}>NO</button>
+              <button type="button" onClick={handleConfirmSubmit} style={{ padding: "8px 20px", border: "none", background: "#3b82f6", color: "white", borderRadius: 6, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseOver={(e) => e.target.style.background = "#2563eb"} onMouseOut={(e) => e.target.style.background = "#3b82f6"}>YES</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutAppointment && (
+        <AppointmentCheckoutModal 
+          appointment={checkoutAppointment}
+          onClose={() => setCheckoutAppointment(null)}
+          onComplete={async (invoiceId) => {
+            setCheckoutAppointment(null);
+            await loadAppointments();
+            // navigate(`/admin/pos-dashboard/${invoiceId}?from=/admin/appointments`);
+          }}
+        />
       )}
     </div>
   );

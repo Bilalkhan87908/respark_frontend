@@ -3,11 +3,17 @@ import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import { useAuth } from "../../context/AuthContext";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
+import { getMyWorkspaceTabs } from "../../utils/myWorkspaceTabs";
 import { Coins, CircleDollarSign, TrendingUp, Sparkles, Hash } from "lucide-react";
 
 export default function MyCommissionPage() {
+  const { auth } = useAuth();
+  const { formatMoney } = useSalonSettings();
   const [data, setData] = useState({ totalCommission: 0, itemCount: 0, items: [] });
   const [loading, setLoading] = useState(true);
+  const myTabs = getMyWorkspaceTabs(auth?.membership?.permissions || {});
 
   useEffect(() => {
     api.get("/owner/my-commission").then((response) => {
@@ -27,22 +33,15 @@ export default function MyCommissionPage() {
         .delay-1 { animation-delay: 0.1s; }
         .delay-2 { animation-delay: 0.2s; }
         
-        .c-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s; }
-        .c-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .c-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s; }
+        .c-card:hover { transform: translateY(-3px); box-shadow: none; border-color: #cbd5e1; }
         
         .stat-badge { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 20px; color: white; display: flex; flex-direction: column; justify-content: center; border: 1px solid rgba(255,255,255,0.2); }
       `}</style>
 
       <ModuleTabs
         title="My Commission"
-        items={[
-          { label: "My Dashboard", to: "/admin/my-dashboard" },
-          { label: "My Appointments", to: "/admin/my-appointments" },
-          { label: "My Schedule", to: "/admin/my-schedule" },
-          { label: "My Commission", to: "/admin/my-commission" },
-          { label: "My Payroll", to: "/admin/my-payroll" },
-          { label: "My Profile", to: "/admin/my-profile" }
-        ]}
+        items={myTabs}
       />
 
       <div className="anim-pop" style={{ background: "linear-gradient(135deg, #16a34a, #14532d)", borderRadius: 24, padding: "40px 32px", color: "white", marginBottom: 32, display: "grid", gridTemplateColumns: "1fr auto", gap: 32, alignItems: "center" }}>
@@ -62,7 +61,7 @@ export default function MyCommissionPage() {
             </div>
             <div className="stat-badge" style={{ background: "rgba(255,255,255,0.25)", borderColor: "rgba(255,255,255,0.4)" }}>
               <div style={{ fontSize: 13, textTransform: "uppercase", fontWeight: 700, color: "#dcfce7", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}><TrendingUp size={14} /> Total Earnings</div>
-              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "monospace" }}>₹{Number(data.totalCommission || 0).toLocaleString()}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "monospace" }}>{formatMoney(data.totalCommission || 0)}</div>
             </div>
           </div>
         )}
@@ -81,11 +80,11 @@ export default function MyCommissionPage() {
                     <h4 style={{ margin: "0 0 6px", fontSize: 16, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>{item.serviceName}</h4>
                     <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 16 }}>
                       <span><strong>Qty:</strong> {item.qty}</span>
-                      <span><strong>Line Total:</strong> ₹{Number(item.lineTotal || 0).toLocaleString()}</span>
+                      <span><strong>Line Total:</strong> {formatMoney(item.lineTotal || 0)}</span>
                     </div>
                   </div>
                   <div style={{ background: "#dcfce7", color: "#166534", padding: "8px 16px", borderRadius: 20, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
-                    <CircleDollarSign size={18} /> +₹{Number(item.commissionAmount || 0).toLocaleString()}
+                    <CircleDollarSign size={18} /> +{formatMoney(item.commissionAmount || 0)}
                   </div>
                 </div>
               ))}

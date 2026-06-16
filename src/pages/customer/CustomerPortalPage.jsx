@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation, useParams, useNavigate } from "react-router-dom";
 import { customerApi, getCustomerSession, setCustomerSession } from "../../api/customerClient";
 import { formatApiError } from "../../utils/apiError";
+import { formatCurrency, normalizeCurrencyCode } from "../../utils/currency";
 import IndianPhoneInput from "../../components/IndianPhoneInput";
 import EmptyState from "../../components/EmptyState";
 import AppointmentFeedbackForm from "../../components/customer/AppointmentFeedbackForm";
@@ -38,6 +39,8 @@ export default function CustomerPortalPage() {
   const [status, setStatus] = useState({ loading: true, error: "" });
   const [profileForm, setProfileForm] = useState({ name: "", phone: "", email: "", preferences: "", allergies: "", skinNotes: "" });
   const [rescheduleForm, setRescheduleForm] = useState({ startAt: "", endAt: "", note: "" });
+  const currencyCode = normalizeCurrencyCode(data?.portalContext?.defaultCurrency || data?.defaultCurrency || session?.customer?.defaultCurrency || "INR");
+  const money = (value) => formatCurrency(value, currencyCode);
 
   const route = useMemo(() => {
     if (location.pathname.startsWith("/customer/appointments/")) return { key: "appointmentDetail", endpoint: `/customer/appointments/${params.id}`, title: "Appointment Detail", icon: Calendar };
@@ -146,17 +149,17 @@ export default function CustomerPortalPage() {
     <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
       <style>{`
         .portal-layout { display: grid; grid-template-columns: 260px 1fr; gap: 32px; max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
-        .portal-sidebar { background: white; border-radius: 20px; padding: 24px 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.03); align-self: start; position: sticky; top: 40px; }
+        .portal-sidebar { background: white; border-radius: 20px; padding: 24px 16px; border: 1px solid #e2e8f0; box-shadow: none; align-self: start; position: sticky; top: 40px; }
         .portal-nav-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; color: #64748b; text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; margin-bottom: 4px; }
         .portal-nav-link:hover { background: #f1f5f9; color: #0f172a; }
-        .portal-nav-link.active { background: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
+        .portal-nav-link.active { background: #6366f1; color: white; box-shadow: none; }
         .portal-nav-link.active svg { color: white !important; }
-        .portal-content { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; }
+        .portal-content { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: none; overflow: hidden; }
         .portal-header { padding: 32px; border-bottom: 1px solid #f1f5f9; background: #fff; }
         .portal-body { padding: 32px; background: #fafbfc; min-height: 400px; }
         
         .c-card { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; transition: all 0.2s; position: relative; overflow: hidden; }
-        .c-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); }
+        .c-card:hover { border-color: #cbd5e1; box-shadow: none; transform: translateY(-2px); }
         .c-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
         .c-card-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 0 0 4px; }
         .c-card-sub { font-size: 13px; color: #64748b; margin: 0; display: flex; align-items: center; gap: 6px; }
@@ -166,10 +169,10 @@ export default function CustomerPortalPage() {
         .c-status.cancelled { background: #fee2e2; color: #991b1b; }
         
         .p-input { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 14px; transition: all 0.2s; outline: none; background: white; }
-        .p-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+        .p-input:focus { border-color: #6366f1; box-shadow: none; }
         .p-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
         .p-btn { padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; }
-        .p-btn-primary { background: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.2); }
+        .p-btn-primary { background: #6366f1; color: white; box-shadow: none; }
         .p-btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
         .p-btn-outline { background: white; border: 1px solid #cbd5e1; color: #334155; }
         .p-btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
@@ -332,7 +335,7 @@ export default function CustomerPortalPage() {
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
                             <div style={{ fontSize: 13, color: "#64748b" }}>
                               {route.key === "appointments" && item.branch?.name && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={14} /> {item.branch.name}</span>}
-                              {(route.key === "invoices" || route.key === "orders") && <strong>Total: ₹{Number(item.total || 0).toLocaleString()}</strong>}
+                              {(route.key === "invoices" || route.key === "orders") && <strong>Total: {money(item.total)}</strong>}
                             </div>
                             <div style={{ color: "#6366f1", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center" }}>
                               View Details <ChevronRight size={16} style={{ marginLeft: 4 }} />
@@ -412,16 +415,16 @@ export default function CustomerPortalPage() {
                           <div key={row.id} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #f1f5f9" }}>
                             <div>
                               <div style={{ fontWeight: 600, color: "#334155" }}>{row.serviceName || row.productName || "Item"}</div>
-                              <div style={{ fontSize: 12, color: "#94a3b8" }}>Qty: {row.qty} × ₹{Number(row.price || 0).toLocaleString()}</div>
+                              <div style={{ fontSize: 12, color: "#94a3b8" }}>Qty: {row.qty} x {money(row.price)}</div>
                             </div>
-                            <div style={{ fontWeight: 700, color: "#0f172a" }}>₹{Number(row.lineTotal || 0).toLocaleString()}</div>
+                            <div style={{ fontWeight: 700, color: "#0f172a" }}>{money(row.lineTotal)}</div>
                           </div>
                         ))}
                       </div>
                       
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc", padding: 20, borderRadius: 12 }}>
                         <span style={{ fontSize: 18, fontWeight: 600, color: "#334155" }}>Total Paid</span>
-                        <span style={{ fontSize: 24, fontWeight: 800, color: "#6366f1" }}>₹{Number(data.total || 0).toLocaleString()}</span>
+                        <span style={{ fontSize: 24, fontWeight: 800, color: "#6366f1" }}>{money(data.total)}</span>
                       </div>
                     </div>
                   </div>
@@ -436,7 +439,7 @@ export default function CustomerPortalPage() {
                         <div style={{ fontSize: 48, fontWeight: 800, margin: "8px 0", display: "flex", alignItems: "center", gap: 12 }}>
                           {Number(data.loyaltyPoints || 0)} <span style={{ fontSize: 18, fontWeight: 600, background: "rgba(255,255,255,0.2)", padding: "4px 12px", borderRadius: 20 }}>Points</span>
                         </div>
-                        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Total Spend: ₹{Number(data.totalSpend || 0).toLocaleString()}</p>
+                        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>Total Spend: {money(data.totalSpend)}</p>
                       </div>
                       <Gift size={80} style={{ opacity: 0.2 }} />
                     </div>
@@ -469,7 +472,7 @@ export default function CustomerPortalPage() {
                       <div key={coupon.id} style={{ background: "white", borderRadius: 16, border: "2px dashed #cbd5e1", padding: 24, position: "relative" }}>
                         <div style={{ position: "absolute", top: -10, left: 24, background: "#6366f1", color: "white", padding: "4px 12px", borderRadius: 12, fontSize: 12, fontWeight: 700 }}>OFFER</div>
                         <h3 style={{ margin: "12px 0 4px", color: "#0f172a" }}>{coupon.title}</h3>
-                        <p style={{ margin: 0, color: "#64748b", fontSize: 14 }}>{coupon.discountType === "PERCENTAGE" ? `${coupon.discountValue}% OFF` : `₹${coupon.discountValue} OFF`}</p>
+                        <p style={{ margin: 0, color: "#64748b", fontSize: 14 }}>{coupon.discountType === "PERCENTAGE" ? `${coupon.discountValue}% OFF` : `${money(coupon.discountValue)} OFF`}</p>
                         <div style={{ background: "#f1f5f9", padding: "12px", borderRadius: 8, marginTop: 16, textAlign: "center", fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: "#334155", letterSpacing: 2 }}>
                           {coupon.code}
                         </div>
@@ -487,3 +490,4 @@ export default function CustomerPortalPage() {
     </div>
   );
 }
+

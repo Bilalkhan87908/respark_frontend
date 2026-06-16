@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, Clock3, Edit3, PackageCheck, Phone, Store, X, ShoppingBag, ArrowRight, CheckCircle2, Truck, Check, XCircle } from "lucide-react";
 import { api } from "../../api/client";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
 import { formatApiError } from "../../utils/apiError";
 import ModuleTabs from "../../components/ModuleTabs";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
 
 export default function OrdersPage() {
+  const { formatMoney } = useSalonSettings();
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
@@ -122,21 +124,21 @@ export default function OrdersPage() {
   return (
     <div className="page-shell" style={{ paddingBottom: 60 }}>
       <style>{`
-        .o-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.2s; position: relative; cursor: pointer; }
-        .o-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .o-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.2s; position: relative; cursor: pointer; }
+        .o-card:hover { transform: translateY(-3px); box-shadow: none; border-color: #cbd5e1; }
         .o-stat-box { background: rgba(255,255,255,0.1); padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); }
         
         .o-pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
         
         .modal-glass { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .modal-box { background: white; width: 100%; max-width: 900px; max-height: 90vh; border-radius: 24px; display: grid; grid-template-columns: 1fr 340px; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.2); animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .modal-box { background: white; width: 100%; max-width: 900px; max-height: 90vh; border-radius: 24px; display: grid; grid-template-columns: 1fr 340px; overflow: hidden; box-shadow: none; animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         .modal-body { padding: 32px; overflow-y: auto; background: #f8fafc; max-height: 90vh; }
         .modal-sidebar { padding: 32px; background: white; border-left: 1px solid #e2e8f0; overflow-y: auto; max-height: 90vh; }
         
         @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
         
         .action-btn { width: 100%; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 14px; border: 1px solid transparent; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
-        .action-primary { background: #6366f1; color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.2); }
+        .action-primary { background: #6366f1; color: white; box-shadow: none; }
         .action-primary:hover { background: #4f46e5; transform: translateY(-1px); }
         .action-secondary { background: white; border-color: #cbd5e1; color: #334155; }
         .action-secondary:hover { background: #f8fafc; border-color: #94a3b8; }
@@ -186,7 +188,7 @@ export default function OrdersPage() {
             </div>
             <div className="o-stat-box" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(99,102,241,0.05))", borderColor: "rgba(99,102,241,0.4)" }}>
               <div style={{ fontSize: 12, color: "#818cf8", marginBottom: 4, textTransform: "uppercase", fontWeight: 600 }}>Total Sales</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "white" }}>₹{Number(summary.totalSales || 0).toLocaleString()}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "white" }}>{formatMoney(summary.totalSales || 0)}</div>
             </div>
           </div>
         )}
@@ -228,7 +230,7 @@ export default function OrdersPage() {
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock3 size={12} /> {new Date(row.createdAt).toLocaleDateString()} {new Date(row.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Store size={12} /> {row.branch?.name || "Main Branch"}</span>
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>₹{Number(row.total || 0).toLocaleString()}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>{formatMoney(row.total || 0)}</div>
                 </div>
               </div>
             );
@@ -283,10 +285,10 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 15 }}>{item.productName}</div>
-                        <div style={{ fontSize: 13, color: "#94a3b8" }}>₹{Number(item.unitPrice || 0).toLocaleString()} each</div>
+                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{formatMoney(item.unitPrice || 0)} each</div>
                       </div>
                     </div>
-                    <div style={{ fontWeight: 800, color: "#0f172a" }}>₹{Number(item.lineTotal || 0).toLocaleString()}</div>
+                    <div style={{ fontWeight: 800, color: "#0f172a" }}>{formatMoney(item.lineTotal || 0)}</div>
                   </div>
                 ))}
               </div>
@@ -300,11 +302,11 @@ export default function OrdersPage() {
 
               <h4 style={{ margin: "0 0 20px", fontSize: 18, color: "#0f172a" }}>Payment Summary</h4>
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 32 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: 14 }}><span>Subtotal</span><span>₹{Number(detail.subtotal || 0).toLocaleString()}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: 14 }}><span>Discount</span><span>-₹{Number(detail.discount || 0).toLocaleString()}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: 14 }}><span>Tax</span><span>+₹{Number(detail.tax || 0).toLocaleString()}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontSize: 18, fontWeight: 800, marginTop: 8, paddingTop: 16, borderTop: "1px dashed #e2e8f0" }}><span>Total</span><span>₹{Number(detail.total || 0).toLocaleString()}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontSize: 14, fontWeight: 600, marginTop: 8 }}><span>Paid Amount</span><span>₹{Number(detail.paidAmount || 0).toLocaleString()}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: 14 }}><span>Subtotal</span><span>{formatMoney(detail.subtotal || 0)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: 14 }}><span>Discount</span><span>-{formatMoney(detail.discount || 0)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", fontSize: 14 }}><span>Tax</span><span>+{formatMoney(detail.tax || 0)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#0f172a", fontSize: 18, fontWeight: 800, marginTop: 8, paddingTop: 16, borderTop: "1px dashed #e2e8f0" }}><span>Total</span><span>{formatMoney(detail.total || 0)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#10b981", fontSize: 14, fontWeight: 600, marginTop: 8 }}><span>Paid Amount</span><span>{formatMoney(detail.paidAmount || 0)}</span></div>
               </div>
 
               <h4 style={{ margin: "0 0 16px", fontSize: 16, color: "#0f172a" }}>Update Status</h4>

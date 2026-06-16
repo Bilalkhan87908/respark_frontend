@@ -5,6 +5,17 @@ import { formatApiError } from '../../utils/apiError';
 import PageLoader from '../../components/PageLoader';
 import './ServiceHubPage.css';
 
+const DURATION_OPTIONS = [
+  { value: 15, label: "15 min" },
+  { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" },
+  { value: 60, label: "1 hour" },
+  { value: 120, label: "2 hours" },
+  { value: 180, label: "3 hours" },
+  { value: 240, label: "4 hours" },
+  { value: 300, label: "5 hours" }
+];
+
 export default function ServiceHubPage() {
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
@@ -77,7 +88,7 @@ export default function ServiceHubPage() {
       list = list.filter((service) => service.category?.id === selectedCategory || service.categoryId === selectedCategory);
     }
     if (selectedGender !== "ALL") {
-      list = list.filter((service) => !service.gender || service.gender === "UNISEX" || service.gender === selectedGender);
+      list = list.filter((service) => !service.gender || ["UNISEX", "BOTH", "ALL"].includes(service.gender.toUpperCase()) || service.gender.toUpperCase() === selectedGender);
     }
     if (searchItem) {
       const query = searchItem.toLowerCase();
@@ -441,7 +452,11 @@ export default function ServiceHubPage() {
                 </div>
                 <div className="hub-form-group">
                   <label>Duration (min)</label>
-                  <input type="number" min="1" className="hub-input" value={srvForm.durationMin} onChange={e => setSrvForm({...srvForm, durationMin: e.target.value})} />
+                  <select className="hub-input" value={srvForm.durationMin} onChange={e => setSrvForm({...srvForm, durationMin: e.target.value})}>
+                    {DURATION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

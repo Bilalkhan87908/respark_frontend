@@ -31,15 +31,15 @@ export default function CustomerLoginPage() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24 }}>
       <style>{`
-        .auth-card { background: white; border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; }
+        .auth-card { background: white; border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: none; border: 1px solid #e2e8f0; }
         .auth-logo { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #a855f7); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; margin: 0 auto 24px; }
         .auth-title { font-size: 24px; font-weight: 800; color: #0f172a; text-align: center; margin: 0 0 8px; }
         .auth-sub { font-size: 14px; color: #64748b; text-align: center; margin: 0 0 32px; }
         .auth-input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 15px; outline: none; transition: all 0.2s; background: #fff; }
-        .auth-input:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
+        .auth-input:focus { border-color: #6366f1; box-shadow: none; }
         .auth-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 8px; }
-        .auth-btn { width: 100%; padding: 14px; border-radius: 12px; background: #6366f1; color: white; font-weight: 700; font-size: 15px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(99,102,241,0.3); }
-        .auth-btn:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+        .auth-btn { width: 100%; padding: 14px; border-radius: 12px; background: #6366f1; color: white; font-weight: 700; font-size: 15px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: none; }
+        .auth-btn:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: none; }
         .auth-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
       `}</style>
       

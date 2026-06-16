@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import EmptyState from "../components/EmptyState";
+import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
 import PageLoader from "../components/PageLoader";
 import { formatApiError } from "../utils/apiError";
 
@@ -138,6 +139,7 @@ export default function ResetPasswordPage() {
                 <label>
               <span className="muted">New password</span>
               <input type="password" value={form.password} placeholder="New password" onChange={(event) => setForm({ ...form, password: event.target.value })} />
+              <PasswordStrengthMeter password={form.password} style={{ marginTop: 10 }} />
             </label>
                 <label>
               <span className="muted">Confirm password</span>

@@ -3,11 +3,15 @@ import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import { useAuth } from "../../context/AuthContext";
+import { getMyWorkspaceTabs } from "../../utils/myWorkspaceTabs";
 import { CalendarCheck, Clock, MapPin, User, Scissors, CheckCircle, PlayCircle } from "lucide-react";
 
 export default function MyAppointmentsPage() {
+  const { auth } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const myTabs = getMyWorkspaceTabs(auth?.membership?.permissions || {});
 
   useEffect(() => {
     let active = true;
@@ -41,8 +45,8 @@ export default function MyAppointmentsPage() {
         .anim-stagger:nth-child(4) { animation: slideIn 0.4s ease-out 0.4s both; }
         .anim-stagger:nth-child(5) { animation: slideIn 0.4s ease-out 0.5s both; }
 
-        .app-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; gap: 16px; }
-        .app-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .app-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; gap: 16px; }
+        .app-card:hover { transform: translateY(-4px); box-shadow: none; border-color: #cbd5e1; }
         
         .app-btn { padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1; }
         .btn-start { background: #e0e7ff; color: #4338ca; }
@@ -55,14 +59,7 @@ export default function MyAppointmentsPage() {
 
       <ModuleTabs
         title="My Appointments"
-        items={[
-          { label: "My Dashboard", to: "/admin/my-dashboard" },
-          { label: "My Appointments", to: "/admin/my-appointments" },
-          { label: "My Schedule", to: "/admin/my-schedule" },
-          { label: "My Commission", to: "/admin/my-commission" },
-          { label: "My Payroll", to: "/admin/my-payroll" },
-          { label: "My Profile", to: "/admin/my-profile" }
-        ]}
+        items={myTabs}
       />
 
       <div style={{ background: "linear-gradient(135deg, #1e293b, #0f172a)", borderRadius: 24, padding: "40px 32px", color: "white", marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

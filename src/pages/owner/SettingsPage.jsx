@@ -1,9 +1,13 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
+import { useAuth } from "../../context/AuthContext";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
 import { formatApiError } from "../../utils/apiError";
+import { normalizeCurrencyCode } from "../../utils/currency";
+import { writeSalonSettingsCache } from "../../utils/salonSettings";
 import { SETTINGS_WORKSPACE_SECTIONS, getSettingsSection } from "./settingsWorkspaceConfig";
 import "./SettingsPage.css";
 
@@ -75,7 +79,8 @@ const defaultAdvancedSettings = {
     deliveryDisclaimer: "",
     pickupDisclaimer: "",
     serviceListHeading: "Our Services",
-    productListHeading: "Products For Sale"
+    productListHeading: "Products For Sale",
+    currency: "INR"
   },
   shiftManagement: {
     shifts: [
@@ -97,8 +102,9 @@ const defaultAdvancedSettings = {
     rows: []
   },
   taxMapping: {
+    inclusiveTax: false,
     rates: [
-      { id: makeId("tax"), label: "Standard Tax", code: "STD", rate: 18, active: true }
+      { id: makeId("tax"), label: "Standard Tax", code: "STD", rate: 18, active: true, applicableFor: ["SERVICE", "PRODUCT"] }
     ]
   },
   feedbackSetting: {
@@ -118,10 +124,19 @@ const defaultAdvancedSettings = {
   },
   loyaltySettings: {
     enabled: true,
-    pointsPerCurrency: 1,
+    expiryDays: 180,
+    earnIndividually: false,
+    skipEarnOnRedemption: false,
+    earnOnMembershipApplied: false,
+    serviceEarning: { amount: 100, points: 1 },
+    productEarning: { amount: 100, points: 1 },
+    packageEarning: { amount: 100, points: 1 },
+    redeemIndividually: false,
+    redeemPoints: 100,
+    redeemAmount: 10,
     minRedeemPoints: 100,
-    maxRedeemPercent: 20,
-    expiryDays: 180
+    maxRedeemPoints: 0,
+    maxRedeemPercent: 20
   },
   membershipSettings: {
     enabled: true,
@@ -162,10 +177,15 @@ const defaultAdvancedSettings = {
   referralSettings: {
     enabled: false,
     maxReferLimit: 1000,
-    referrerRewardMode: "fixed",
-    referrerRewardValue: 500,
-    referredRewardMode: "percent",
-    referredRewardValue: 10
+    referrerMaxBenefitAmount: 500,
+    referrerFixedAmount: 0,
+    referrerPercentage: 10,
+    referredMaxBenefitAmount: 500,
+    referredFixedAmount: 0,
+    referredPercentage: 10
+  },
+  expenseSettings: {
+    autoApprove: false
   },
   designations: [
     { id: makeId("designation"), name: "Salon Manager", description: "Runs floor operations", active: true }
@@ -195,10 +215,11 @@ const defaultAdvancedSettings = {
   }
 };
 
-const mergeAdvancedSettings = (raw = {}) => ({
-  ...defaultAdvancedSettings,
-  ...raw,
-  genericSettings: { ...defaultAdvancedSettings.genericSettings, ...(raw.genericSettings || {}) },
+const mergeAdvancedSettings = (raw = {}) => {
+  const merged = {
+    ...defaultAdvancedSettings,
+    ...raw,
+    genericSettings: { ...defaultAdvancedSettings.genericSettings, ...(raw.genericSettings || {}) },
   shiftManagement: {
     ...defaultAdvancedSettings.shiftManagement,
     ...(raw.shiftManagement || {}),
@@ -226,13 +247,17 @@ const mergeAdvancedSettings = (raw = {}) => ({
   crmSegments: Array.isArray(raw.crmSegments) && raw.crmSegments.length ? raw.crmSegments : defaultAdvancedSettings.crmSegments,
   couponSettings: { ...defaultAdvancedSettings.couponSettings, ...(raw.couponSettings || {}) },
   referralSettings: { ...defaultAdvancedSettings.referralSettings, ...(raw.referralSettings || {}) },
+  expenseSettings: { ...defaultAdvancedSettings.expenseSettings, ...(raw.expenseSettings || {}) },
   designations: Array.isArray(raw.designations) && raw.designations.length ? raw.designations : defaultAdvancedSettings.designations,
   legalContent: { ...defaultAdvancedSettings.legalContent, ...(raw.legalContent || {}) },
   pnlCategories: Array.isArray(raw.pnlCategories) && raw.pnlCategories.length ? raw.pnlCategories : defaultAdvancedSettings.pnlCategories,
   pnlIncomeTaxes: Array.isArray(raw.pnlIncomeTaxes) && raw.pnlIncomeTaxes.length ? raw.pnlIncomeTaxes : defaultAdvancedSettings.pnlIncomeTaxes,
   incentiveSettings: { ...defaultAdvancedSettings.incentiveSettings, ...(raw.incentiveSettings || {}) },
   footerContent: { ...defaultAdvancedSettings.footerContent, ...(raw.footerContent || {}) }
-});
+  };
+  merged.genericSettings.currency = normalizeCurrencyCode(merged.genericSettings.currency);
+  return merged;
+};
 
 const initialForm = {
   invoicePrefix: "INV",
@@ -261,6 +286,7 @@ const liveSummaryFallback = {
   staffRows: [],
   customRoles: [],
   staffSchedules: [],
+  customers: [],
   services: [],
   memberships: [],
   packages: [],
@@ -268,7 +294,19 @@ const liveSummaryFallback = {
   coupons: [],
   giftCards: [],
   incentives: [],
-  notifications: []
+  notifications: [],
+  feedbackSummary: {
+    total: 0,
+    averageRating: 0,
+    negativeCount: 0
+  },
+  expenseAccountInjections: []
+};
+
+const emptyGiftCardDraft = {
+  code: "",
+  title: "",
+  originalAmount: 1000
 };
 
 const rowsFromResponse = (response) => {
@@ -280,6 +318,11 @@ const rowsFromResponse = (response) => {
   if (Array.isArray(data?.notifications)) return data.notifications;
   if (Array.isArray(data?.redemptions)) return data.redemptions;
   return [];
+};
+
+const objectFromResponse = (response, fallback = {}) => {
+  const data = response?.status === "fulfilled" ? response.value?.data : null;
+  return data && typeof data === "object" && !Array.isArray(data) ? data : fallback;
 };
 
 const summaryStats = (summary) => [
@@ -324,20 +367,54 @@ const SectionHeader = ({ title, description, badges, action }) => (
 export default function SettingsPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { auth } = useAuth();
+  const { formatMoney } = useSalonSettings();
   const [form, setForm] = useState(initialForm);
   const [paymentModes, setPaymentModes] = useState(defaultPaymentModes);
   const [summary, setSummary] = useState(liveSummaryFallback);
+  const [segmentPreviewCounts, setSegmentPreviewCounts] = useState({});
   const [status, setStatus] = useState({ loading: true, error: "", success: "" });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [giftCardDraft, setGiftCardDraft] = useState(emptyGiftCardDraft);
+  const [issuingGiftCard, setIssuingGiftCard] = useState(false);
+  const [selectedTaxId, setSelectedTaxId] = useState(null);
+  const [draftTax, setDraftTax] = useState(null);
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+  const salonId = auth?.salonId || auth?.membership?.salonId || auth?.membership?.salon?.id || "global";
+  const salonSlug = auth?.membership?.salon?.slug || auth?.salon?.slug || "";
+  const settingsPermissions = Array.isArray(auth?.membership?.permissions?.settings)
+    ? auth.membership.permissions.settings
+    : [];
+  const canEditSettings = settingsPermissions.includes("edit");
+
+  const refreshGiftCardsSummary = useCallback(async () => {
+    try {
+      const response = await api.get("/owner/gift-cards");
+      const rows = Array.isArray(response.data) ? response.data : [];
+      setSummary((current) => ({ ...current, giftCards: rows }));
+    } catch {
+      // Keep the last known summary if refresh fails.
+    }
+  }, []);
 
   const activeSection = useMemo(() => getSettingsSection(location.pathname), [location.pathname]);
 
   const filteredSections = useMemo(() => {
+    if (!canEditSettings) return [];
     if (!deferredSearch) return SETTINGS_WORKSPACE_SECTIONS;
     return SETTINGS_WORKSPACE_SECTIONS.filter((item) => `${item.label} ${item.hint}`.toLowerCase().includes(deferredSearch));
-  }, [deferredSearch]);
+  }, [canEditSettings, deferredSearch]);
+
+  if (!canEditSettings) {
+    return (
+      <div className="settings-workspace-wrapper">
+        <div className="settings-panel-card">
+          <p className="error-text">Access restricted. This settings workspace is only visible for roles with `settings.edit` permission.</p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     let active = true;
@@ -348,6 +425,7 @@ export default function SettingsPage() {
           api.get("/owner/users"),
           api.get("/owner/custom-roles"),
           api.get("/owner/staff-schedule"),
+          api.get("/owner/customers"),
           api.get("/owner/services"),
           api.get("/owner/memberships"),
           api.get("/owner/packages"),
@@ -355,13 +433,16 @@ export default function SettingsPage() {
           api.get("/owner/coupons"),
           api.get("/owner/gift-cards"),
           api.get("/owner/incentives"),
-          api.get("/owner/notifications")
+          api.get("/owner/notifications"),
+          api.get("/owner/feedback/reports"),
+          api.get("/owner/expenses/accounts")
         ]);
 
         if (!active) return;
 
         if (settingsResponse.status === "fulfilled" && settingsResponse.value.data) {
           const row = settingsResponse.value.data;
+          writeSalonSettingsCache(salonId, row);
           setForm({
             invoicePrefix: row.invoicePrefix || "INV",
             invoiceFooter: row.invoiceFooter || "",
@@ -391,14 +472,17 @@ export default function SettingsPage() {
           staffRows: rowsFromResponse(summaryResponses[0]),
           customRoles: rowsFromResponse(summaryResponses[1]),
           staffSchedules: rowsFromResponse(summaryResponses[2]),
-          services: rowsFromResponse(summaryResponses[3]),
-          memberships: rowsFromResponse(summaryResponses[4]),
-          packages: rowsFromResponse(summaryResponses[5]),
-          loyaltyRules: rowsFromResponse(summaryResponses[6]),
-          coupons: rowsFromResponse(summaryResponses[7]),
-          giftCards: rowsFromResponse(summaryResponses[8]),
-          incentives: rowsFromResponse(summaryResponses[9]),
-          notifications: rowsFromResponse(summaryResponses[10])
+          customers: rowsFromResponse(summaryResponses[3]),
+          services: rowsFromResponse(summaryResponses[4]),
+          memberships: rowsFromResponse(summaryResponses[5]),
+          packages: rowsFromResponse(summaryResponses[6]),
+          loyaltyRules: rowsFromResponse(summaryResponses[7]),
+          coupons: rowsFromResponse(summaryResponses[8]),
+          giftCards: rowsFromResponse(summaryResponses[9]),
+          incentives: rowsFromResponse(summaryResponses[10]),
+          notifications: rowsFromResponse(summaryResponses[11]),
+          feedbackSummary: objectFromResponse(summaryResponses[12], liveSummaryFallback.feedbackSummary).summary || liveSummaryFallback.feedbackSummary,
+          expenseAccountInjections: objectFromResponse(summaryResponses[13], { injections: [] }).injections || []
         };
         setSummary(nextSummary);
         setStatus({ loading: false, error: "", success: "" });
@@ -415,28 +499,115 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const segments = form.advancedSettings.crmSegments || [];
+    if (!segments.length) {
+      setSegmentPreviewCounts({});
+      return undefined;
+    }
+
+    const loadPreview = async () => {
+      try {
+        const response = await api.post("/owner/settings/crm-segment-preview", { segments });
+        if (!active) return;
+        setSegmentPreviewCounts(response.data?.preview || {});
+      } catch {
+        if (!active) return;
+        setSegmentPreviewCounts({});
+      }
+    };
+
+    void loadPreview();
+    return () => {
+      active = false;
+    };
+  }, [form.advancedSettings.crmSegments]);
+
+  useEffect(() => {
     if (!summary.staffRows.length) return;
     setForm((current) => {
-      if (current.advancedSettings.rosterManagement.rows.length) return current;
+      const existingRows = current.advancedSettings.rosterManagement.rows;
+      const existingIds = new Set(existingRows.map((row) => String(row.id)));
+      const defaultShift = (current.advancedSettings.shiftManagement?.shifts || []).find((row) => row?.active !== false)
+        || current.advancedSettings.shiftManagement?.shifts?.[0]
+        || null;
+      const appendedRows = summary.staffRows
+        .filter((row) => !existingIds.has(String(row.id)))
+        .map((row) => ({
+          id: row.id,
+          staffName: row.user?.name || row.phone || "Staff",
+          fromTime: defaultShift?.startTime || "09:00",
+          toTime: defaultShift?.endTime || "21:00",
+          isWorking: defaultShift?.active !== false,
+          breakLabel: defaultShift?.breakLabel || ""
+        }));
+      if (!existingRows.length && !appendedRows.length) return current;
+      if (!appendedRows.length && existingRows.length) return current;
       return {
         ...current,
         advancedSettings: {
           ...current.advancedSettings,
           rosterManagement: {
             ...current.advancedSettings.rosterManagement,
-            rows: summary.staffRows.map((row) => ({
-              id: row.id,
-              staffName: row.user?.name || row.phone || "Staff",
-              fromTime: "09:00",
-              toTime: "21:00",
-              isWorking: true,
-              breakLabel: ""
-            }))
+            rows: existingRows.length
+              ? [...existingRows, ...appendedRows]
+              : summary.staffRows.map((row) => ({
+                  id: row.id,
+                  staffName: row.user?.name || row.phone || "Staff",
+                  fromTime: defaultShift?.startTime || "09:00",
+                  toTime: defaultShift?.endTime || "21:00",
+                  isWorking: defaultShift?.active !== false,
+                  breakLabel: defaultShift?.breakLabel || ""
+                }))
           }
         }
       };
     });
   }, [summary.staffRows]);
+
+  const handleReset = async () => {
+    try {
+      setSaving(true);
+      setStatus({ loading: true, error: "", success: "" });
+      const response = await api.get("/owner/settings");
+      if (response.data) {
+        const row = response.data;
+        writeSalonSettingsCache(salonId, row);
+        setForm({
+          invoicePrefix: row.invoicePrefix || "INV",
+          invoiceFooter: row.invoiceFooter || "",
+          taxLabel: row.taxLabel || "Tax",
+          whatsappNumber: row.whatsappNumber || "",
+          bookingNotes: row.bookingNotes || "",
+          cancellationPolicy: row.cancellationPolicy || "",
+          allowNegativeStock: Boolean(row.allowNegativeStock),
+          paymentGatewaySettings: {
+            defaultGateway: row.paymentGatewaySettings?.defaultGateway || "RAZORPAY_PLACEHOLDER",
+            paymentLinkEnabled: row.paymentGatewaySettings?.paymentLinkEnabled ?? true,
+            edcTerminalName: row.paymentGatewaySettings?.edcTerminalName || "",
+            upiHandle: row.paymentGatewaySettings?.upiHandle || "",
+            gatewayNotes: row.paymentGatewaySettings?.gatewayNotes || ""
+          },
+          advancedSettings: mergeAdvancedSettings(row.advancedSettings || {}),
+          smsSettings: {
+            gatewayProvider: row.smsSettings?.gatewayProvider || "TWILIO_PLACEHOLDER",
+            apiKey: row.smsSettings?.apiKey || "",
+            senderId: row.smsSettings?.senderId || ""
+          }
+        });
+        setPaymentModes({ ...defaultPaymentModes, ...(row.paymentModes || {}) });
+        setStatus({ loading: false, error: "", success: "Settings reset to saved values." });
+      } else {
+        setForm(initialForm);
+        setPaymentModes(defaultPaymentModes);
+        setStatus({ loading: false, error: "", success: "Settings reset to defaults." });
+      }
+    } catch (error) {
+      setStatus({ loading: false, error: formatApiError(error, "Could not reset settings"), success: "" });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveWorkspace = async () => {
     setSaving(true);
@@ -456,6 +627,12 @@ export default function SettingsPage() {
         smsSettings: form.smsSettings
       });
       setStatus({ loading: false, error: "", success: "Settings workspace saved successfully." });
+      writeSalonSettingsCache(salonId, response.data || {
+        advancedSettings: form.advancedSettings,
+        invoicePrefix: form.invoicePrefix,
+        invoiceFooter: form.invoiceFooter,
+        taxLabel: form.taxLabel
+      });
       if (response.data?.advancedSettings) {
         setForm((current) => ({
           ...current,
@@ -503,147 +680,559 @@ export default function SettingsPage() {
 
   const liveStats = summaryStats(summary);
 
+  const issueGiftCardFromSettings = async (event) => {
+    event.preventDefault();
+    setIssuingGiftCard(true);
+    setStatus((current) => ({ ...current, error: "", success: "" }));
+    try {
+      await api.post("/owner/gift-cards", {
+        ...giftCardDraft,
+        originalAmount: Number(giftCardDraft.originalAmount)
+      });
+      setGiftCardDraft(emptyGiftCardDraft);
+      await refreshGiftCardsSummary();
+      setStatus({ loading: false, error: "", success: "Gift card issued successfully from settings." });
+    } catch (error) {
+      setStatus({ loading: false, error: formatApiError(error, "Could not issue gift card"), success: "" });
+    } finally {
+      setIssuingGiftCard(false);
+    }
+  };
+
   const renderGenericSection = () => {
     const generic = form.advancedSettings.genericSettings;
+    const allChecked = WEEK_DAYS.every((day) => generic.weeklyOff.includes(day.key));
+
+    const toggleWeeklyOff = (dayKey) => {
+      const active = generic.weeklyOff.includes(dayKey);
+      const nextWeeklyOff = active 
+        ? generic.weeklyOff.filter((item) => item !== dayKey)
+        : [...generic.weeklyOff, dayKey];
+      updateGeneric("weeklyOff", nextWeeklyOff);
+    };
+
+    const toggleAllWeeklyOff = (checked) => {
+      if (checked) {
+        updateGeneric("weeklyOff", WEEK_DAYS.map((day) => day.key));
+      } else {
+        updateGeneric("weeklyOff", []);
+      }
+    };
+
     return (
       <>
         <SectionHeader
           title="Generic Settings"
-          description="Business timing, checkout defaults, catalogue behavior, customer booking rules, and front-facing content all live here now."
-          badges={["Core setup", `Tax ${form.taxLabel}`, form.paymentGatewaySettings.paymentLinkEnabled ? "Payment Links On" : "Payment Links Off"]}
+          description="Business timing, storefront behavior, booking rules, checkout defaults, and currency propagation are managed from this workspace."
+          badges={[
+            `${normalizeCurrencyCode(generic.currency || "INR")} live currency`,
+            generic.appointmentBookingEnabled ? "Booking Live" : "Booking Off",
+            generic.productOrderingEnabled ? "Store Orders Live" : "Store Orders Off"
+          ]}
+          action={<Link className="secondary-button" to="/site">Open Storefront</Link>}
         />
 
-        <div className="settings-column-layout">
-          <div className="settings-column-stack">
-            <div className="settings-panel-card">
-              <h3>Business Settings</h3>
-              <div className="settings-form-grid">
-                <ToggleRow checked={generic.businessOpen} label="Business Open" helper="Owner-facing operating status for the salon." onChange={(value) => updateGeneric("businessOpen", value)} />
-                <label className="settings-input-group">
-                  <span className="muted">Business start</span>
-                  <input type="time" value={generic.businessStart} onChange={(event) => updateGeneric("businessStart", event.target.value)} />
-                </label>
-                <label className="settings-input-group">
-                  <span className="muted">Business end</span>
-                  <input type="time" value={generic.businessEnd} onChange={(event) => updateGeneric("businessEnd", event.target.value)} />
-                </label>
-                <label className="settings-input-group">
-                  <span className="muted">Applicable for</span>
-                  <select value={generic.applicableFor} onChange={(event) => updateGeneric("applicableFor", event.target.value)}>
-                    <option value="female">Female</option>
-                    <option value="male">Male</option>
-                    <option value="both">Both</option>
-                  </select>
-                </label>
-                <label className="settings-input-group">
-                  <span className="muted">WhatsApp number</span>
-                  <input value={form.whatsappNumber} onChange={(event) => setForm((current) => ({ ...current, whatsappNumber: event.target.value }))} placeholder="Salon WhatsApp number" />
-                </label>
-                <label className="settings-input-group">
-                  <span className="muted">Tax label</span>
-                  <input value={form.taxLabel} onChange={(event) => setForm((current) => ({ ...current, taxLabel: event.target.value }))} placeholder="Tax label" />
-                </label>
-              </div>
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Currency, storefront product layout, minimum online order value, cancellation/reschedule permissions, and cancelled-appointment visibility are already wired into live customer/storefront flows. Appointment tags and service-PDP preferences are kept here as saved rollout metadata unless noted otherwise.
+        </div>
 
-              <div className="settings-chip-grid" style={{ marginTop: 18 }}>
-                {WEEK_DAYS.map((day) => {
-                  const active = generic.weeklyOff.includes(day.key);
-                  return (
-                    <button
-                      key={day.key}
-                      type="button"
-                      className={`settings-chip ${active ? "active" : ""}`}
-                      onClick={() => updateGeneric("weeklyOff", active ? generic.weeklyOff.filter((item) => item !== day.key) : [...generic.weeklyOff, day.key])}
-                    >
-                      {day.label}
-                    </button>
-                  );
-                })}
+        <div className="settings-panel-card">
+          <div className="settings-panel-header-with-toggle" style={{ borderBottom: "none", marginBottom: 16, paddingBottom: 0 }}>
+            <h3>Business Settings</h3>
+          </div>
+
+          <div className="business-settings-content">
+            <div className="toggle-option-row" style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 16, marginBottom: 16 }}>
+              <span className="label-text">Is Open ?</span>
+              <div className="header-toggle-container">
+                <label className="toggle-switch-label">
+                  <input
+                    type="checkbox"
+                    checked={generic.businessOpen}
+                    onChange={(e) => updateGeneric("businessOpen", e.target.checked)}
+                  />
+                  <span className="toggle-switch-slider" />
+                </label>
+                <span className="toggle-status-text" style={{ marginLeft: 8 }}>{generic.businessOpen ? "On" : "Off"}</span>
               </div>
             </div>
 
-            <div className="settings-panel-card">
-              <h3>Payment Modes</h3>
-              <div className="badge-row">
-                {Object.entries(paymentModes).map(([key, value]) => (
-                  <button key={key} type="button" className={`settings-chip ${value ? "active" : ""}`} onClick={() => togglePaymentMode(key)}>
-                    {key}
-                  </button>
-                ))}
+            <div className="business-settings-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: "24px", alignItems: "start" }}>
+              <div>
+                <span className="sub-section-title">Business Timing</span>
+                <div className="timing-inputs" style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                  <label className="checkbox-option">
+                    <span style={{ minWidth: 40 }}>From :</span>
+                    <input
+                      type="time"
+                      value={generic.businessStart}
+                      onChange={(event) => updateGeneric("businessStart", event.target.value)}
+                      style={{ padding: "6px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    />
+                  </label>
+                  <label className="checkbox-option">
+                    <span style={{ minWidth: 40 }}>To :</span>
+                    <input
+                      type="time"
+                      value={generic.businessEnd}
+                      onChange={(event) => updateGeneric("businessEnd", event.target.value)}
+                      style={{ padding: "6px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <span className="sub-section-title">Applicable For</span>
+                <div className="radio-group" style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="applicableFor"
+                      value="female"
+                      checked={generic.applicableFor === "female"}
+                      onChange={() => updateGeneric("applicableFor", "female")}
+                    />
+                    Female
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="applicableFor"
+                      value="male"
+                      checked={generic.applicableFor === "male"}
+                      onChange={() => updateGeneric("applicableFor", "male")}
+                    />
+                    Male
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name="applicableFor"
+                      value="both"
+                      checked={generic.applicableFor === "both"}
+                      onChange={() => updateGeneric("applicableFor", "both")}
+                    />
+                    Both
+                  </label>
+                </div>
+              </div>
+
+              <div className="weekly-off-section">
+                <span className="sub-section-title">Set weekly off</span>
+                <div className="checkbox-group" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginTop: "8px" }}>
+                  <label className="checkbox-option">
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={(e) => toggleAllWeeklyOff(e.target.checked)}
+                    />
+                    All
+                  </label>
+                  {WEEK_DAYS.map((day) => (
+                    <label key={day.key} className="checkbox-option">
+                      <input
+                        type="checkbox"
+                        checked={generic.weeklyOff.includes(day.key)}
+                        onChange={() => toggleWeeklyOff(day.key)}
+                      />
+                      {day.label}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="settings-column-stack">
-            <div className="settings-panel-card">
-              <h3>Commerce & Booking</h3>
-              <div className="settings-toggle-stack">
-                <ToggleRow checked={generic.onlinePaymentEnabled} label="Online Payment" helper="Allow online order and appointment payment flows." onChange={(value) => updateGeneric("onlinePaymentEnabled", value)} />
-                <ToggleRow checked={generic.productOrderingEnabled} label="Product Ordering" helper="Turn on commerce ordering widgets in the catalogue." onChange={(value) => updateGeneric("productOrderingEnabled", value)} />
-                <ToggleRow checked={generic.pickupOrderingEnabled} label="Pickup Ordering" helper="Allow store pickup as an order fulfilment mode." onChange={(value) => updateGeneric("pickupOrderingEnabled", value)} />
-                <ToggleRow checked={generic.cashOnPickupEnabled} label="Cash on Pickup" helper="Allow cash collection on pickup orders." onChange={(value) => updateGeneric("cashOnPickupEnabled", value)} />
-                <ToggleRow checked={generic.homeDeliveryEnabled} label="Home Delivery" helper="Enable home delivery orders in the public catalogue." onChange={(value) => updateGeneric("homeDeliveryEnabled", value)} />
-                <ToggleRow checked={generic.cashOnDeliveryEnabled} label="Cash on Delivery" helper="Allow COD for home delivery flows." onChange={(value) => updateGeneric("cashOnDeliveryEnabled", value)} />
-                <ToggleRow checked={generic.appointmentBookingEnabled} label="Appointment Booking" helper="Keep guest booking live through public and CRM flows." onChange={(value) => updateGeneric("appointmentBookingEnabled", value)} />
-                <ToggleRow checked={generic.sendAppointmentSms} label="Send Appointment SMS" helper="Push SMS confirmation and reminder nudges to guests." onChange={(value) => updateGeneric("sendAppointmentSms", value)} />
+          <div className="payment-section">
+            <span className="sub-section-title">Online payment</span>
+            <div className="checkbox-group">
+              <label className="checkbox-option">
+                <input
+                  type="checkbox"
+                  checked={generic.onlinePaymentEnabled}
+                  onChange={(e) => updateGeneric("onlinePaymentEnabled", e.target.checked)}
+                />
+                Online Payment for Orders & Appointments are Enabled
+              </label>
+            </div>
+            <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              This setting feeds public checkout and booking payment availability.
+            </div>
+          </div>
+
+          <div className="product-ordering-section">
+            <div className="settings-panel-header-with-toggle" style={{ borderBottom: "none", marginBottom: 0, paddingBottom: 0 }}>
+              <h3>Product Ordering</h3>
+              <div className="header-toggle-container">
+                <label className="toggle-switch-label">
+                  <input
+                    type="checkbox"
+                    checked={generic.productOrderingEnabled}
+                    onChange={(e) => updateGeneric("productOrderingEnabled", e.target.checked)}
+                  />
+                  <span className="toggle-switch-slider" />
+                </label>
+                <span className="toggle-status-text">{generic.productOrderingEnabled ? "On" : "Off"}</span>
               </div>
-              <div className="settings-form-grid" style={{ marginTop: 18 }}>
-                <label className="settings-input-group">
-                  <span className="muted">Minimum order value</span>
-                  <input type="number" min="0" value={generic.minimumOrderValue} onChange={(event) => updateGeneric("minimumOrderValue", Number(event.target.value))} />
+            </div>
+
+            <div className="ordering-grid">
+              <div className="ordering-column">
+                <span className="col-header">Delivery Order</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.homeDeliveryEnabled}
+                    onChange={(e) => updateGeneric("homeDeliveryEnabled", e.target.checked)}
+                  />
+                  Home Delivery Orders are Enabled
                 </label>
-                <label className="settings-input-group">
-                  <span className="muted">Invoice prefix</span>
-                  <input value={form.invoicePrefix} onChange={(event) => setForm((current) => ({ ...current, invoicePrefix: event.target.value }))} />
+              </div>
+              <div className="ordering-column">
+                <span className="col-header">Pickup Order</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.pickupOrderingEnabled}
+                    onChange={(e) => updateGeneric("pickupOrderingEnabled", e.target.checked)}
+                  />
+                  Pickup ordering is Enabled
                 </label>
-                <label className="settings-input-group">
-                  <span className="muted">UPI handle</span>
-                  <input value={form.paymentGatewaySettings.upiHandle} onChange={(event) => setForm((current) => ({ ...current, paymentGatewaySettings: { ...current.paymentGatewaySettings, upiHandle: event.target.value } }))} placeholder="upi@bank" />
+              </div>
+              <div className="ordering-column">
+                <span className="col-header">Cash on pickup</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.cashOnPickupEnabled}
+                    onChange={(e) => updateGeneric("cashOnPickupEnabled", e.target.checked)}
+                  />
+                  Cash on pickup is Enabled
                 </label>
-                <label className="settings-input-group">
-                  <span className="muted">Gateway</span>
-                  <select value={form.paymentGatewaySettings.defaultGateway} onChange={(event) => setForm((current) => ({ ...current, paymentGatewaySettings: { ...current.paymentGatewaySettings, defaultGateway: event.target.value } }))}>
-                    <option value="RAZORPAY_PLACEHOLDER">Razorpay Placeholder</option>
-                    <option value="CASHFREE_PLACEHOLDER">Cashfree Placeholder</option>
-                    <option value="PHONEPE_PLACEHOLDER">PhonePe Placeholder</option>
-                    <option value="MANUAL_UPI_PLACEHOLDER">Manual UPI Placeholder</option>
-                  </select>
+              </div>
+              <div className="ordering-column">
+                <span className="col-header">Cash on delivery</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.cashOnDeliveryEnabled}
+                    onChange={(e) => updateGeneric("cashOnDeliveryEnabled", e.target.checked)}
+                  />
+                  Cash on delivery is Enabled
                 </label>
+              </div>
+              <div className="ordering-column">
+                <span className="col-header">Minimum Order Value</span>
+                <input
+                  type="number"
+                  placeholder="Enter Mini Order Amount"
+                  value={generic.minimumOrderValue || ""}
+                  onChange={(e) => updateGeneric("minimumOrderValue", Number(e.target.value))}
+                  style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px", width: "100%", outline: "none" }}
+                />
+              </div>
+            </div>
+            <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+              Delivery, pickup, COD, and minimum order value are enforced in the live online-order checkout flow.
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-panel-card">
+          <div className="settings-panel-header-with-toggle">
+            <h3>Appointment Booking</h3>
+            <div className="header-toggle-container">
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.appointmentBookingEnabled}
+                  onChange={(e) => updateGeneric("appointmentBookingEnabled", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+              <span className="toggle-status-text">{generic.appointmentBookingEnabled ? "On" : "Off"}</span>
+            </div>
+          </div>
+
+          <div className="appointment-columns-grid">
+            <div className="appointment-col">
+              <div>
+                <span className="sub-section-title">Send appointment SMS</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.sendAppointmentSms}
+                    onChange={(e) => updateGeneric("sendAppointmentSms", e.target.checked)}
+                  />
+                  Send SMS to Guests
+                </label>
+              </div>
+              <div>
+                <span className="sub-section-title">Enable Cancellation from catalogue</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.allowCancellationFromCatalogue}
+                    onChange={(e) => updateGeneric("allowCancellationFromCatalogue", e.target.checked)}
+                  />
+                  Allow Cancellation from catalogue
+                </label>
+              </div>
+              <div>
+                <span className="sub-section-title">Hide Cancelled Appointment</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.hideCancelledAppointments}
+                    onChange={(e) => updateGeneric("hideCancelledAppointments", e.target.checked)}
+                  />
+                  Hide Cancelled Appointment From Dashboard
+                </label>
+              </div>
+            </div>
+
+            <div className="appointment-col">
+              <div>
+                <span className="sub-section-title">Appointment Reminder before days</span>
+                <input
+                  type="number"
+                  value={generic.appointmentReminderDays}
+                  onChange={(e) => updateGeneric("appointmentReminderDays", Number(e.target.value))}
+                  placeholder="Enter days"
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px", outline: "none" }}
+                />
+              </div>
+              <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+                Reminder badges and guest-tag metadata stay hidden here until the related appointment badge rollout is wired end-to-end.
+              </div>
+            </div>
+
+            <div className="appointment-col">
+              <div>
+                <span className="sub-section-title">Enable Reschedule from catalogue</span>
+                <label className="checkbox-option">
+                  <input
+                    type="checkbox"
+                    checked={generic.allowRescheduleFromCatalogue}
+                    onChange={(e) => updateGeneric("allowRescheduleFromCatalogue", e.target.checked)}
+                  />
+                  Allow Reschedule from catalogue
+                </label>
+              </div>
+              <div>
+                <span className="sub-section-title">Appointment Reminder before hours</span>
+                <input
+                  type="number"
+                  value={generic.appointmentReminderHours}
+                  onChange={(e) => updateGeneric("appointmentReminderHours", Number(e.target.value))}
+                  placeholder="Enter hours"
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px", outline: "none" }}
+                />
+              </div>
+              <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>
+                Reschedule, cancel, reminder-days, and reminder-hours are the live controls in this section today.
               </div>
             </div>
           </div>
         </div>
 
         <div className="settings-panel-card">
-          <h3>Catalogue Presentation</h3>
-          <div className="settings-toggle-grid">
-            <ToggleRow checked={generic.showProductsOnHome} label="Show products on homepage" onChange={(value) => updateGeneric("showProductsOnHome", value)} />
-            <ToggleRow checked={generic.showServicePdf} label="Show service PDF" onChange={(value) => updateGeneric("showServicePdf", value)} />
-            <ToggleRow checked={generic.showProductPdf} label="Show product PDF" onChange={(value) => updateGeneric("showProductPdf", value)} />
-            <ToggleRow checked={generic.showProductGrid} label="Show product grid" onChange={(value) => updateGeneric("showProductGrid", value)} />
-            <ToggleRow checked={generic.showProductThumbnails} label="Show product thumbnails" onChange={(value) => updateGeneric("showProductThumbnails", value)} />
-            <ToggleRow checked={generic.showAddButtonOnProductCard} label="Show add button on cards" onChange={(value) => updateGeneric("showAddButtonOnProductCard", value)} />
-            <ToggleRow checked={generic.showGetQuoteButton} label="Show get quote button" onChange={(value) => updateGeneric("showGetQuoteButton", value)} />
-            <ToggleRow checked={generic.showAllBranchesInCatalogue} label="Show all branches in catalogue" onChange={(value) => updateGeneric("showAllBranchesInCatalogue", value)} />
-            <ToggleRow checked={generic.otpValidationOnRegistration} label="OTP validation on registration" onChange={(value) => updateGeneric("otpValidationOnRegistration", value)} />
-            <ToggleRow checked={Boolean(form.paymentGatewaySettings.paymentLinkEnabled)} label="Payment links" onChange={(value) => setForm((current) => ({ ...current, paymentGatewaySettings: { ...current.paymentGatewaySettings, paymentLinkEnabled: value } }))} />
+          <div className="settings-panel-header-with-toggle">
+            <h3>Feedback</h3>
+            <div className="header-toggle-container">
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={form.advancedSettings.feedbackSetting.enabled}
+                  onChange={(e) => updateAdvancedObject("feedbackSetting", { enabled: e.target.checked })}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+              <span className="toggle-status-text">{form.advancedSettings.feedbackSetting.enabled ? "On" : "Off"}</span>
+            </div>
           </div>
-          <div className="settings-form-grid" style={{ marginTop: 18 }}>
+          <div className="appointment-grid">
+            <div className="appointment-col">
+              <span className="sub-section-title">Send SMS</span>
+              <label className="checkbox-option">
+                <input
+                  type="checkbox"
+                  checked={form.advancedSettings.feedbackSetting.sendSms}
+                  onChange={(e) => updateAdvancedObject("feedbackSetting", { sendSms: e.target.checked })}
+                />
+                Send SMS to Guests
+              </label>
+            </div>
+            <div className="appointment-col">
+              <span className="sub-section-title">Send Whatsapp</span>
+              <label className="checkbox-option">
+                <input
+                  type="checkbox"
+                  checked={form.advancedSettings.feedbackSetting.sendWhatsapp}
+                  onChange={(e) => updateAdvancedObject("feedbackSetting", { sendWhatsapp: e.target.checked })}
+                />
+                Send WhatsApp message to Guests
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-panel-card">
+          <div className="settings-panel-header-with-toggle" style={{ borderBottom: "none", marginBottom: 0, paddingBottom: 0 }}>
+            <h3>Discount</h3>
+            <div className="header-toggle-container">
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={form.advancedSettings.couponSettings.enabled}
+                  onChange={(e) => updateAdvancedObject("couponSettings", { enabled: e.target.checked })}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+              <span className="toggle-status-text">{form.advancedSettings.couponSettings.enabled ? "On" : "Off"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-panel-card">
+          <div className="settings-panel-header-with-toggle" style={{ borderBottom: "none", marginBottom: 12 }}>
+            <h3>Catalogue Presentation</h3>
+          </div>
+
+          <div className="toggle-options-grid">
+            <div className="toggle-option-row">
+              <span className="label-text">Show products in grid view on Home Page</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showProductsOnHome}
+                  onChange={(e) => updateGeneric("showProductsOnHome", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+            <div className="toggle-option-row">
+              <span className="label-text">Show PDP(Product description page) for products</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showProductPdf}
+                  onChange={(e) => updateGeneric("showProductPdf", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+            <div className="muted" style={{ marginTop: -6, marginBottom: 6, fontSize: 12 }}>
+              Product PDP preference is stored here while current storefront list/detail presentation remains live.
+            </div>
+            <div className="toggle-option-row">
+              <span className="label-text">Show grid view for products listing</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showProductGrid}
+                  onChange={(e) => updateGeneric("showProductGrid", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+            <div className="toggle-option-row">
+              <span className="label-text">Show thumbnails on product page</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showProductThumbnails}
+                  onChange={(e) => updateGeneric("showProductThumbnails", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+            <div className="toggle-option-row">
+              <span className="label-text">Show add button on product card</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showAddButtonOnProductCard}
+                  onChange={(e) => updateGeneric("showAddButtonOnProductCard", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+            <div className="toggle-option-row">
+              <span className="label-text">Show get quote button</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showGetQuoteButton}
+                  onChange={(e) => updateGeneric("showGetQuoteButton", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+            <div className="toggle-option-row">
+              <span className="label-text">Show all branches(Store Locator) in catalogue</span>
+              <label className="toggle-switch-label">
+                <input
+                  type="checkbox"
+                  checked={generic.showAllBranchesInCatalogue}
+                  onChange={(e) => updateGeneric("showAllBranchesInCatalogue", e.target.checked)}
+                />
+                <span className="toggle-switch-slider" />
+              </label>
+            </div>
+          </div>
+
+          <div className="settings-form-grid">
             <label className="settings-input-group">
-              <span className="muted">Service list heading</span>
-              <input value={generic.serviceListHeading} onChange={(event) => updateGeneric("serviceListHeading", event.target.value)} />
+              <span className="muted">Delivery Disclaimer</span>
+              <textarea
+                rows="3"
+                value={generic.deliveryDisclaimer}
+                onChange={(event) => updateGeneric("deliveryDisclaimer", event.target.value)}
+                placeholder="Enter Delivery Disclaimer text..."
+              />
             </label>
             <label className="settings-input-group">
-              <span className="muted">Product list heading</span>
-              <input value={generic.productListHeading} onChange={(event) => updateGeneric("productListHeading", event.target.value)} />
+              <span className="muted">Pickup Disclaimer</span>
+              <textarea
+                rows="3"
+                value={generic.pickupDisclaimer}
+                onChange={(event) => updateGeneric("pickupDisclaimer", event.target.value)}
+                placeholder="Enter Pickup Disclaimer text..."
+              />
             </label>
             <label className="settings-input-group">
-              <span className="muted">Delivery disclaimer</span>
-              <textarea rows="3" value={generic.deliveryDisclaimer} onChange={(event) => updateGeneric("deliveryDisclaimer", event.target.value)} />
+              <span className="muted">Service List Heading</span>
+              <input
+                type="text"
+                value={generic.serviceListHeading}
+                onChange={(event) => updateGeneric("serviceListHeading", event.target.value)}
+                placeholder="Our Services"
+              />
             </label>
             <label className="settings-input-group">
-              <span className="muted">Pickup disclaimer</span>
-              <textarea rows="3" value={generic.pickupDisclaimer} onChange={(event) => updateGeneric("pickupDisclaimer", event.target.value)} />
+              <span className="muted">Product List Heading</span>
+              <input
+                type="text"
+                value={generic.productListHeading}
+                onChange={(event) => updateGeneric("productListHeading", event.target.value)}
+                placeholder="Products For Sale"
+              />
+            </label>
+            <label className="settings-input-group">
+              <span className="muted">Use Currency :</span>
+              <select
+                value={normalizeCurrencyCode(generic.currency || "INR")}
+                onChange={(event) => updateGeneric("currency", event.target.value)}
+              >
+                <option value="INR">Indian Rupee (INR)</option>
+                <option value="USD">US Dollar (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+                <option value="GBP">British Pound (GBP)</option>
+                <option value="AED">UAE Dirham (AED)</option>
+                <option value="SAR">Saudi Riyal (SAR)</option>
+              </select>
             </label>
           </div>
         </div>
@@ -654,6 +1243,7 @@ export default function SettingsPage() {
 
   const renderShiftSection = () => {
     const shifts = form.advancedSettings.shiftManagement.shifts;
+    const rosterModuleEnabled = form.advancedSettings.allowRosterMgtSettings !== false;
     const updateShift = (id, patch) => {
       updateAdvancedObject("shiftManagement", {
         shifts: shifts.map((shift) => shift.id === id ? { ...shift, ...patch } : shift)
@@ -664,9 +1254,32 @@ export default function SettingsPage() {
     });
     const removeShift = (id) => updateAdvancedObject("shiftManagement", { shifts: shifts.filter((shift) => shift.id !== id) });
 
+    const addBreak = (shiftId) => {
+      const shift = shifts.find(s => s.id === shiftId);
+      const newBreaks = [...(shift.breaks || []), { id: makeId("break"), name: "", active: true, fromTime: "", toTime: "" }];
+      updateShift(shiftId, { breaks: newBreaks });
+    };
+
+    const updateBreak = (shiftId, breakId, patch) => {
+      const shift = shifts.find(s => s.id === shiftId);
+      const newBreaks = (shift.breaks || []).map(b => b.id === breakId ? { ...b, ...patch } : b);
+      updateShift(shiftId, { breaks: newBreaks });
+    };
+
+    const removeBreak = (shiftId, breakId) => {
+      const shift = shifts.find(s => s.id === shiftId);
+      const newBreaks = (shift.breaks || []).filter(b => b.id !== breakId);
+      updateShift(shiftId, { breaks: newBreaks });
+    };
+
     return (
       <>
-        <SectionHeader title="Shift Management" description="Create reusable shift templates so roster planning stays consistent across staff, roles, and branches." badges={[`${shifts.length} shifts`, form.advancedSettings.allowRosterMgtSettings ? "Roster Enabled" : "Roster Locked"]} />
+        <SectionHeader title="Shift Management" description="Create reusable shift templates so roster planning stays consistent across staff, roles, and branches." badges={[`${shifts.length} shifts`, rosterModuleEnabled ? "Roster Enabled" : "Roster Locked"]} />
+        {!rosterModuleEnabled ? (
+          <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+            Roster management is currently disabled from settings, so these templates stay visible for reference but should not be treated as editable live defaults until the module is enabled again.
+          </div>
+        ) : null}
         <div className="settings-list-stack">
           {shifts.map((shift) => (
             <div key={shift.id} className="settings-panel-card">
@@ -674,25 +1287,25 @@ export default function SettingsPage() {
                 <h3>{shift.name || "New Shift"}</h3>
                 <div className="inline-actions">
                   <span className={`badge ${shift.active ? "" : "badge-cancelled"}`}>{shift.active ? "Active" : "Inactive"}</span>
-                  <button type="button" className="secondary-button" onClick={() => removeShift(shift.id)}>Remove</button>
+                  <button type="button" className="secondary-button" onClick={() => removeShift(shift.id)} disabled={!rosterModuleEnabled}>Remove</button>
                 </div>
               </div>
               <div className="settings-form-grid">
                 <label className="settings-input-group">
                   <span className="muted">Shift name</span>
-                  <input value={shift.name} onChange={(event) => updateShift(shift.id, { name: event.target.value })} placeholder="Enter shift name" />
+                  <input disabled={!rosterModuleEnabled} value={shift.name} onChange={(event) => updateShift(shift.id, { name: event.target.value })} placeholder="Enter shift name" />
                 </label>
                 <label className="settings-input-group">
                   <span className="muted">Start time</span>
-                  <input type="time" value={shift.startTime} onChange={(event) => updateShift(shift.id, { startTime: event.target.value })} />
+                  <input disabled={!rosterModuleEnabled} type="time" value={shift.startTime} onChange={(event) => updateShift(shift.id, { startTime: event.target.value })} />
                 </label>
                 <label className="settings-input-group">
                   <span className="muted">End time</span>
-                  <input type="time" value={shift.endTime} onChange={(event) => updateShift(shift.id, { endTime: event.target.value })} />
+                  <input disabled={!rosterModuleEnabled} type="time" value={shift.endTime} onChange={(event) => updateShift(shift.id, { endTime: event.target.value })} />
                 </label>
                 <label className="settings-input-group">
                   <span className="muted">Break label</span>
-                  <input value={shift.breakLabel || ""} onChange={(event) => updateShift(shift.id, { breakLabel: event.target.value })} placeholder="Lunch / Tea / Prayer" />
+                  <input disabled={!rosterModuleEnabled} value={shift.breakLabel || ""} onChange={(event) => updateShift(shift.id, { breakLabel: event.target.value })} placeholder="Lunch / Tea / Prayer" />
                 </label>
               </div>
               <div className="settings-chip-grid" style={{ marginTop: 16 }}>
@@ -703,6 +1316,7 @@ export default function SettingsPage() {
                       key={day.key}
                       type="button"
                       className={`settings-chip ${active ? "active" : ""}`}
+                      disabled={!rosterModuleEnabled}
                       onClick={() => updateShift(shift.id, { days: active ? shift.days.filter((item) => item !== day.key) : [...shift.days, day.key] })}
                     >
                       {day.label}
@@ -710,44 +1324,55 @@ export default function SettingsPage() {
                   );
                 })}
               </div>
+
+              {/* Breaks Section */}
+              <div style={{ marginTop: 24, padding: "16px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px", color: "#334155" }}>Break Types</span>
+                  <button type="button" className="blue-btn-secondary" style={{ padding: "6px 12px", fontSize: "12px", background: "#2563eb", color: "white", border: "none", borderRadius: "6px" }} onClick={() => addBreak(shift.id)} disabled={!rosterModuleEnabled}>Add Break Type</button>
+                </div>
+                {(shift.breaks || []).map((brk) => (
+                  <div key={brk.id} style={{ padding: "16px", background: "white", border: "1px solid #e2e8f0", borderRadius: "8px", position: "relative", marginBottom: "12px" }}>
+                    <button type="button" onClick={() => removeBreak(shift.id, brk.id)} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: "20px", fontWeight: "bold", lineHeight: 1 }}>
+                      &times;
+                    </button>
+                    
+                    <div style={{ display: "flex", gap: "24px", alignItems: "center", marginBottom: 16 }}>
+                      <label className="settings-input-group" style={{ flex: 1, margin: 0 }}>
+                        <span className="muted" style={{ display: "block", marginBottom: "6px" }}>Break Name</span>
+                        <input value={brk.name} onChange={(e) => updateBreak(shift.id, brk.id, { name: e.target.value })} placeholder="Enter Break Name" disabled={!rosterModuleEnabled} style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: "6px", width: "100%", outline: "none" }} />
+                      </label>
+                      <label className="checkbox-option" style={{ margin: 0, marginTop: "24px" }}>
+                        <input type="checkbox" checked={brk.active} onChange={(e) => updateBreak(shift.id, brk.id, { active: e.target.checked })} disabled={!rosterModuleEnabled} />
+                        Active
+                      </label>
+                    </div>
+                    
+                    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+                      <span className="muted" style={{ display: "block", marginBottom: 8 }}>Break Timing</span>
+                      <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#64748b" }}>
+                          From
+                          <input type="time" value={brk.fromTime} onChange={(e) => updateBreak(shift.id, brk.id, { fromTime: e.target.value })} style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, outline: "none" }} disabled={!rosterModuleEnabled} />
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#64748b" }}>
+                          To
+                          <input type="time" value={brk.toTime} onChange={(e) => updateBreak(shift.id, brk.id, { toTime: e.target.value })} style={{ padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, outline: "none" }} disabled={!rosterModuleEnabled} />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div style={{ marginTop: 16 }}>
-                <ToggleRow checked={shift.active} label="Shift active" helper="Inactive templates stay in history but do not appear in selection lists." onChange={(value) => updateShift(shift.id, { active: value })} />
+                <ToggleRow checked={shift.active} label="Shift active" helper="Inactive templates stay in history but do not appear in selection lists." onChange={(value) => { if (rosterModuleEnabled) updateShift(shift.id, { active: value }); }} />
               </div>
             </div>
           ))}
         </div>
-        <button type="button" onClick={addShift}>Create New Shift</button>
+        <button type="button" onClick={addShift} disabled={!rosterModuleEnabled}>Create New Shift</button>
 
-        <div className="settings-panel-card">
-          <div className="section-heading">
-            <h3>Assigned Staff Preview</h3>
-            <span className="badge">Staff {summary.staffRows.length}</span>
-          </div>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Yahan se aap dekh sakte ho ke kaun staff roster/shift assignment ke liye available hai. Actual time assignment `Roster Management` mein hoti rahegi.
-          </p>
-          <div className="settings-list-stack">
-            {summary.staffRows.map((row) => (
-              <div key={row.id} className="list-item">
-                <div className="item-head">
-                  <strong>{row.user?.name || row.phone || "Staff Member"}</strong>
-                  <span className="badge">{row.salonRole || "Role"}</span>
-                </div>
-                <div className="item-meta">
-                  {row.branch?.name || "All branches"}
-                  {row.customRole?.name ? ` | ${row.customRole.name}` : ""}
-                  {row.showInCatalog ? " | Visible in catalog" : ""}
-                </div>
-              </div>
-            ))}
-            {!summary.staffRows.length && (
-              <EmptyState
-                title="No staff added yet"
-                message="Jab naya staff add hoga to uska preview yahin nazar aayega, aur usko roster mein assign bhi kar sakenge."
-              />
-            )}
-          </div>
-        </div>
       </>
     );
   };
@@ -755,10 +1380,12 @@ export default function SettingsPage() {
   const renderRosterSection = () => {
     const roster = form.advancedSettings.rosterManagement;
     const shifts = form.advancedSettings.shiftManagement.shifts;
+    const rosterModuleEnabled = form.advancedSettings.allowRosterMgtSettings !== false;
     const updateRow = (id, patch) => updateAdvancedObject("rosterManagement", {
       rows: roster.rows.map((row) => row.id === id ? { ...row, ...patch } : row)
     });
     const applyShiftTemplate = () => {
+      if (!rosterModuleEnabled) return;
       const selectedShift = shifts.find((item) => item.id === roster.useShiftId);
       if (!selectedShift) return;
       updateAdvancedObject("rosterManagement", {
@@ -766,32 +1393,38 @@ export default function SettingsPage() {
           ...row,
           fromTime: selectedShift.startTime,
           toTime: selectedShift.endTime,
-          isWorking: selectedShift.active
+          isWorking: selectedShift.active,
+          breakLabel: selectedShift.breakLabel || row.breakLabel || ""
         }))
       });
     };
 
     return (
       <>
-        <SectionHeader title="Roster Management" description="Use saved shifts as templates and keep a quick day-wise operating roster for all staff inside settings." badges={[`${roster.rows.length} staff rows`, `${summary.staffSchedules.length} live schedule rows`]} />
+        <SectionHeader title="Roster Management" description="Use saved shifts as templates and keep a quick day-wise operating roster for all staff inside settings." badges={[`${roster.rows.length} staff rows`, `${summary.staffSchedules.length} live schedule rows`, rosterModuleEnabled ? "Roster Editable" : "Roster Locked"]} />
+        {!rosterModuleEnabled ? (
+          <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+            Roster management is locked from settings, so these rows remain visible but editing is intentionally paused until the module is enabled again.
+          </div>
+        ) : null}
         <div className="settings-panel-card">
           <div className="settings-form-grid">
             <label className="settings-input-group">
               <span className="muted">Apply for</span>
-              <input value={roster.applyFor} onChange={(event) => updateAdvancedObject("rosterManagement", { applyFor: event.target.value })} />
+              <input disabled={!rosterModuleEnabled} value={roster.applyFor} onChange={(event) => updateAdvancedObject("rosterManagement", { applyFor: event.target.value })} />
             </label>
             <label className="settings-input-group">
               <span className="muted">Use shift</span>
-              <select value={roster.useShiftId} onChange={(event) => updateAdvancedObject("rosterManagement", { useShiftId: event.target.value })}>
+              <select disabled={!rosterModuleEnabled} value={roster.useShiftId} onChange={(event) => updateAdvancedObject("rosterManagement", { useShiftId: event.target.value })}>
                 <option value="">Select shift</option>
-                {shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.name || "Unnamed Shift"}</option>)}
+                {shifts.filter((shift) => shift.active !== false).map((shift) => <option key={shift.id} value={shift.id}>{shift.name || "Unnamed Shift"}</option>)}
               </select>
             </label>
             <label className="settings-input-group">
               <span className="muted">Selected date</span>
-              <input type="date" value={roster.selectedDate} onChange={(event) => updateAdvancedObject("rosterManagement", { selectedDate: event.target.value })} />
+              <input disabled={!rosterModuleEnabled} type="date" value={roster.selectedDate} onChange={(event) => updateAdvancedObject("rosterManagement", { selectedDate: event.target.value })} />
             </label>
-            <button type="button" onClick={applyShiftTemplate}>Apply Shift to All</button>
+            <button type="button" onClick={applyShiftTemplate} disabled={!rosterModuleEnabled}>Apply Shift to All</button>
           </div>
         </div>
         <div className="settings-table-wrap">
@@ -809,10 +1442,10 @@ export default function SettingsPage() {
               {roster.rows.map((row) => (
                 <tr key={row.id}>
                   <td>{row.staffName}</td>
-                  <td><input type="time" value={row.fromTime || "09:00"} onChange={(event) => updateRow(row.id, { fromTime: event.target.value })} /></td>
-                  <td><input type="time" value={row.toTime || "21:00"} onChange={(event) => updateRow(row.id, { toTime: event.target.value })} /></td>
-                  <td><label className="mini-toggle-label"><input type="checkbox" className="premium-toggle-input" checked={Boolean(row.isWorking)} onChange={(event) => updateRow(row.id, { isWorking: event.target.checked })} /><div className="mini-toggle-switch"></div></label></td>
-                  <td><input value={row.breakLabel || ""} onChange={(event) => updateRow(row.id, { breakLabel: event.target.value })} placeholder="Add break" /></td>
+                  <td><input disabled={!rosterModuleEnabled} type="time" value={row.fromTime || "09:00"} onChange={(event) => updateRow(row.id, { fromTime: event.target.value })} /></td>
+                  <td><input disabled={!rosterModuleEnabled} type="time" value={row.toTime || "21:00"} onChange={(event) => updateRow(row.id, { toTime: event.target.value })} /></td>
+                  <td><label className="mini-toggle-label"><input disabled={!rosterModuleEnabled} type="checkbox" className="premium-toggle-input" checked={Boolean(row.isWorking)} onChange={(event) => updateRow(row.id, { isWorking: event.target.checked })} /><div className="mini-toggle-switch"></div></label></td>
+                  <td><input disabled={!rosterModuleEnabled} value={row.breakLabel || ""} onChange={(event) => updateRow(row.id, { breakLabel: event.target.value })} placeholder="Add break" /></td>
                 </tr>
               ))}
               {roster.rows.length === 0 && (
@@ -834,29 +1467,314 @@ export default function SettingsPage() {
 
   const renderTaxSection = () => {
     const taxRows = form.advancedSettings.taxMapping.rates;
-    const updateRate = (id, patch) => updateAdvancedObject("taxMapping", {
-      rates: taxRows.map((rate) => rate.id === id ? { ...rate, ...patch } : rate)
-    });
-    const addRate = () => updateAdvancedObject("taxMapping", {
-      rates: [...taxRows, { id: makeId("tax"), label: "", code: "", rate: 0, active: true }]
-    });
+    const inclusiveTax = form.advancedSettings.taxMapping.inclusiveTax ?? false;
+
+    const selectedRow = taxRows.find((r) => r.id === selectedTaxId) || null;
+
+    const startCreate = () => {
+      const newId = makeId("tax");
+      setDraftTax({ id: newId, label: "", code: "", rate: 0, active: true, applicableFor: ["SERVICE", "PRODUCT"], _isNew: true });
+      setSelectedTaxId(newId);
+    };
+
+    const startEdit = (row) => {
+      setDraftTax({ ...row, _isNew: false });
+      setSelectedTaxId(row.id);
+    };
+
+    const cancelDraft = () => {
+      if (draftTax?._isNew) {
+        setSelectedTaxId(null);
+        setDraftTax(null);
+      } else {
+        setDraftTax(null);
+      }
+    };
+
+    const saveDraft = () => {
+      if (!draftTax) return;
+      if (!draftTax.label.trim()) return;
+      const { _isNew, ...clean } = draftTax;
+      if (_isNew) {
+        updateAdvancedObject("taxMapping", { rates: [...taxRows, clean] });
+      } else {
+        updateAdvancedObject("taxMapping", { rates: taxRows.map((r) => r.id === clean.id ? clean : r) });
+      }
+      setDraftTax(null);
+      setSelectedTaxId(clean.id);
+    };
+
+    const deleteTax = (id) => {
+      updateAdvancedObject("taxMapping", { rates: taxRows.filter((r) => r.id !== id) });
+      if (selectedTaxId === id) { setSelectedTaxId(null); setDraftTax(null); }
+    };
+
+    const toggleApplicable = (key) => {
+      if (!draftTax) return;
+      const current = draftTax.applicableFor || [];
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+      setDraftTax({ ...draftTax, applicableFor: next });
+    };
+
+    const editing = draftTax || selectedRow;
 
     return (
       <>
-        <SectionHeader title="Tax Mapping" description="Define named tax mappings for billing, services, packages, and reporting labels." badges={[`Tax label: ${form.taxLabel}`, `${taxRows.length} tax rows`]} />
-        <div className="settings-list-stack">
-          {taxRows.map((row) => (
-            <div key={row.id} className="settings-panel-card">
-              <div className="settings-form-grid">
-                <label className="settings-input-group"><span className="muted">Label</span><input value={row.label} onChange={(event) => updateRate(row.id, { label: event.target.value })} /></label>
-                <label className="settings-input-group"><span className="muted">Code</span><input value={row.code} onChange={(event) => updateRate(row.id, { code: event.target.value })} /></label>
-                <label className="settings-input-group"><span className="muted">Rate %</span><input type="number" value={row.rate} onChange={(event) => updateRate(row.id, { rate: Number(event.target.value) })} /></label>
-                <ToggleRow checked={row.active} label="Active" onChange={(value) => updateRate(row.id, { active: value })} />
+        <SectionHeader title="Tax Mapping" description="Define named tax mappings for billing, services, packages, and reporting labels." badges={["Tax label: " + form.taxLabel, taxRows.length + " tax rows", inclusiveTax ? "Inclusive" : "Exclusive"]} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          New services without an explicit tax rate now inherit the first active tax mapping automatically.
+        </div>
+
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          {/* LEFT PANEL — Tax List */}
+          <div style={{ width: 260, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#14b8a6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
+              </div>
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                {taxRows.map((row) => (
+                  <div
+                    key={row.id}
+                    onClick={() => { setSelectedTaxId(row.id); setDraftTax(null); }}
+                    style={{
+                      padding: "12px 16px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      background: selectedTaxId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedTaxId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{row.label || "Untitled Tax"}</div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{row.code} | {row.rate}% {row.active ? "● Active" : "○ Inactive"}</div>
+                  </div>
+                ))}
+                {!taxRows.length && <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No taxes defined</div>}
               </div>
             </div>
-          ))}
+          </div>
+
+          {/* RIGHT PANEL — Form */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#14b8a6" }}>{draftTax?._isNew ? "Create Tax" : `Edit: ${editing.label || "Tax"}`}</h3>
+
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
+                  <label className="settings-input-group">
+                    <span className="muted">Tax Name</span>
+                    <input value={draftTax?.label ?? editing.label} onChange={(e) => draftTax && setDraftTax({ ...draftTax, label: e.target.value })} placeholder="Enter Tax Name" />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Tax Value</span>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <input type="number" value={draftTax?.rate ?? editing.rate} onChange={(e) => draftTax && setDraftTax({ ...draftTax, rate: Number(e.target.value) })} placeholder="Enter Tax Value" style={{ flex: 1 }} />
+                      <span style={{ padding: "8px 12px", background: "#f1f5f9", border: "1px solid #e2e8f0", borderLeft: "none", borderRadius: "0 8px 8px 0", fontSize: 13, color: "#475569" }}>%</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div style={{ display: "flex", gap: 32, marginBottom: 16 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={draftTax?.active ?? editing.active}
+                      onChange={(e) => draftTax && setDraftTax({ ...draftTax, active: e.target.checked })}
+                      style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }}
+                    />
+                    Active
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={inclusiveTax}
+                      onChange={(e) => updateAdvancedObject("taxMapping", { inclusiveTax: e.target.checked })}
+                      style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }}
+                    />
+                    Inclusive Taxes
+                  </label>
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: "#334155", marginBottom: 8 }}>Applicable For</div>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                    {[{ key: "SERVICE", label: "Service" }, { key: "PRODUCT", label: "Product" }, { key: "MEMBERSHIP", label: "Membership" }, { key: "PACKAGE", label: "Packages" }].map(({ key, label }) => (
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#334155", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={(draftTax?.applicableFor ?? (editing.applicableFor || [])).includes(key)}
+                          onChange={() => draftTax && toggleApplicable(key)}
+                          style={{ width: 16, height: 16, accentColor: "#3b82f6", cursor: "pointer" }}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Save</button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: "#94a3b8", fontSize: 14 }}>
+                Select a tax from the left panel or click "Create New"
+              </div>
+            )}
+          </div>
         </div>
-        <button type="button" onClick={addRate}>Add Tax Mapping</button>
+      </>
+    );
+  };
+
+  const renderLoyaltySettingsSection = () => {
+    const loyalty = form.advancedSettings.loyaltySettings;
+    const u = (patch) => updateAdvancedObject("loyaltySettings", patch);
+    const uService = (patch) => u({ serviceEarning: { ...loyalty.serviceEarning, ...patch } });
+    const uProduct = (patch) => u({ productEarning: { ...loyalty.productEarning, ...patch } });
+    const uPackage = (patch) => u({ packageEarning: { ...loyalty.packageEarning, ...patch } });
+
+    const summaryText = loyalty.earnIndividually
+      ? `Earn ${formatMoney(loyalty.serviceEarning?.amount || 0)} = ${loyalty.serviceEarning?.points || 0} pts (Service) | ${formatMoney(loyalty.productEarning?.amount || 0)} = ${loyalty.productEarning?.points || 0} pts (Product) | ${formatMoney(loyalty.packageEarning?.amount || 0)} = ${loyalty.packageEarning?.points || 0} pts (Package)`
+      : `Earn ${loyalty.serviceEarning?.points || 0} Points on Every ${formatMoney(loyalty.serviceEarning?.amount || 0)} Spent`;
+    const redeemText = `Redeem ${formatMoney(loyalty.redeemAmount || 0)} on Every ${loyalty.redeemPoints || 0} Point`;
+
+    return (
+      <>
+        <div className="settings-panel-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <h3 style={{ margin: 0, border: "none", padding: 0, fontSize: 16 }}>Loyalty</h3>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={loyalty.enabled} onChange={(e) => u({ enabled: e.target.checked })} style={{ width: 20, height: 20, accentColor: "#3b82f6", cursor: "pointer" }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: loyalty.enabled ? "#16a34a" : "#64748b" }}>Enabled</span>
+              </label>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#475569" }}>
+              <span>Loyalty Expiration:</span>
+              <input type="number" value={loyalty.expiryDays} onChange={(e) => u({ expiryDays: Number(e.target.value) })} style={{ width: 70, padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, textAlign: "center" }} />
+              <span>Days</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-panel-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+              <input type="checkbox" checked={loyalty.earnIndividually} onChange={(e) => u({ earnIndividually: e.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+              Earn Loyalty on Service, Product and Package Individually
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+              <input type="checkbox" checked={loyalty.skipEarnOnRedemption} onChange={(e) => u({ skipEarnOnRedemption: e.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+              Skip Earning Loyalty on Redemption
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+              <input type="checkbox" checked={loyalty.earnOnMembershipApplied} onChange={(e) => u({ earnOnMembershipApplied: e.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+              Earn Loyalty on Service, Product when Percentage Membership is Applied
+            </label>
+          </div>
+        </div>
+
+        <div className="settings-panel-card" style={{ marginBottom: 24 }}>
+          {loyalty.earnIndividually ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+              <div key="service">
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#334155", marginBottom: 12 }}>Configuration for Service Loyalty Earning</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</label>
+                    <input type="number" placeholder="Enter Amount*" value={loyalty.serviceEarning?.amount || ""} onChange={(e) => uService({ amount: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Points</label>
+                    <input type="number" placeholder="Enter Points*" value={loyalty.serviceEarning?.points || ""} onChange={(e) => uService({ points: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#475569" }}>Earn {loyalty.serviceEarning?.points || 0} Points on Every {formatMoney(loyalty.serviceEarning?.amount || 0)} Spent</div>
+              </div>
+              <div key="product">
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#334155", marginBottom: 12 }}>Configuration for Product Loyalty Earning</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</label>
+                    <input type="number" placeholder="Enter Amount*" value={loyalty.productEarning?.amount || ""} onChange={(e) => uProduct({ amount: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Points</label>
+                    <input type="number" placeholder="Enter Points*" value={loyalty.productEarning?.points || ""} onChange={(e) => uProduct({ points: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#475569" }}>Earn {loyalty.productEarning?.points || 0} Points on Every {formatMoney(loyalty.productEarning?.amount || 0)} Spent</div>
+              </div>
+              <div key="package">
+                <div style={{ fontWeight: 600, fontSize: 13, color: "#334155", marginBottom: 12 }}>Configuration for Package Loyalty Earning</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</label>
+                    <input type="number" placeholder="Enter Amount*" value={loyalty.packageEarning?.amount || ""} onChange={(e) => uPackage({ amount: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Points</label>
+                    <input type="number" placeholder="Enter Points*" value={loyalty.packageEarning?.points || ""} onChange={(e) => uPackage({ points: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#475569" }}>Earn {loyalty.packageEarning?.points || 0} Points on Every {formatMoney(loyalty.packageEarning?.amount || 0)} Spent</div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "#334155", marginBottom: 12 }}>Configuration for Loyalty Earning</div>
+              <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
+                <div style={{ width: 200 }}>
+                  <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</label>
+                  <input type="number" placeholder="Enter Amount*" value={loyalty.serviceEarning?.amount || ""} onChange={(e) => { uService({ amount: Number(e.target.value) }); uProduct({ amount: Number(e.target.value) }); uPackage({ amount: Number(e.target.value) }); }} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                <div style={{ width: 200 }}>
+                  <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Points</label>
+                  <input type="number" placeholder="Enter Points*" value={loyalty.serviceEarning?.points || ""} onChange={(e) => { uService({ points: Number(e.target.value) }); uProduct({ points: Number(e.target.value) }); uPackage({ points: Number(e.target.value) }); }} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: "#475569" }}>{summaryText}</div>
+            </div>
+          )}
+        </div>
+
+        <div className="settings-panel-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <h3 style={{ margin: 0, border: "none", padding: 0, fontSize: 16, color: "#94a3b8" }}>Redeem Loyalty on Service, Product and Package Individually</h3>
+            <input type="checkbox" checked={loyalty.redeemIndividually} onChange={(e) => u({ redeemIndividually: e.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+          </div>
+
+          <div style={{ fontWeight: 600, fontSize: 13, color: "#334155", marginBottom: 12 }}>Configuration for Loyalty Redemption</div>
+          <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
+            <div style={{ width: 200 }}>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>Points</label>
+              <input type="number" placeholder="Enter Points*" value={loyalty.redeemPoints || ""} onChange={(e) => u({ redeemPoints: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div style={{ width: 200 }}>
+              <label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 4 }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</label>
+              <input type="number" placeholder="Enter Amount*" value={loyalty.redeemAmount || ""} onChange={(e) => u({ redeemAmount: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "#475569", marginBottom: 20 }}>{redeemText}</div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>Minimum Points Eligible for Redemption</label>
+              <input type="number" placeholder="Enter Min Points Req*" value={loyalty.minRedeemPoints || ""} onChange={(e) => u({ minRedeemPoints: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>Maximum Points Redeemable per Order</label>
+              <input type="number" placeholder="Enter Points*" value={loyalty.maxRedeemPoints || ""} onChange={(e) => u({ maxRedeemPoints: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>Percentage Redeemable on Order</label>
+              <input type="number" placeholder="Enter % Of Order Amount*" value={loyalty.maxRedeemPercent || ""} onChange={(e) => u({ maxRedeemPercent: Number(e.target.value) })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }} />
+            </div>
+          </div>
+        </div>
       </>
     );
   };
@@ -866,6 +1784,9 @@ export default function SettingsPage() {
     return (
       <>
         <SectionHeader title="Feedback Setting" description="Control how and when guest feedback is requested, escalated, and acknowledged." badges={[feedback.enabled ? "Feedback On" : "Feedback Off"]} action={<Link className="secondary-button" to="/admin/feedback">Open Feedback Module</Link>} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          These values feed the live feedback settings endpoint, negative-rating alert flow, and owner feedback workspace.
+        </div>
         <div className="settings-panel-card">
           <div className="settings-toggle-grid">
             <ToggleRow checked={feedback.enabled} label="Enable feedback" onChange={(value) => updateAdvancedObject("feedbackSetting", { enabled: value })} />
@@ -954,6 +1875,9 @@ export default function SettingsPage() {
     return (
       <>
         <SectionHeader title="Notification Settings" description="Define how business alerts travel across email, SMS, WhatsApp, and digest windows." badges={[`${summary.notifications.filter((row) => !row.isRead).length} unread live alerts`]} action={<Link className="secondary-button" to="/admin/notifications">Open Notifications</Link>} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Staff/customer notification creation respects these channel toggles, while digest hour stays available for batching/reporting workflows.
+        </div>
         <div className="settings-panel-card">
           <div className="settings-toggle-grid">
             <ToggleRow checked={config.emailEnabled} label="Email alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { emailEnabled: value })} />
@@ -961,7 +1885,91 @@ export default function SettingsPage() {
             <ToggleRow checked={config.whatsappEnabled} label="WhatsApp alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { whatsappEnabled: value })} />
             <ToggleRow checked={config.pushEnabled} label="Push alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { pushEnabled: value })} />
             <label className="settings-input-group"><span className="muted">Digest hour</span><input type="time" value={config.digestHour} onChange={(event) => updateAdvancedObject("notificationSettings", { digestHour: event.target.value })} /></label>
+            <div className="settings-input-group" style={{ alignSelf: "end" }}><span className="muted" style={{ fontSize: 12 }}>Digest hour is stored for scheduled notification batching and reporting visibility.</span></div>
             <label className="settings-input-group"><span className="muted">Alert email</span><input value={config.alertEmail} onChange={(event) => updateAdvancedObject("notificationSettings", { alertEmail: event.target.value })} /></label>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderGiftCardSection = () => {
+    const section = form.advancedSettings.giftCardSettings;
+    const previewRows = (summary.giftCards || []).slice(0, 6);
+    return (
+      <>
+        <SectionHeader
+          title="Gift Card"
+          description="Configure gift card validity, amount bands, and operational readiness."
+          badges={[`${summary.giftCards.length} gift cards`]}
+          action={<Link className="secondary-button" to="/admin/gift-cards">Open Module</Link>}
+        />
+        <div className="settings-panel-card">
+          <div className="settings-toggle-grid">
+            <ToggleRow checked={section.enabled} label="Enable Gift Card" onChange={(value) => updateAdvancedObject("giftCardSettings", { enabled: value })} />
+            <label className="settings-input-group"><span className="muted">Validity days</span><input type="number" value={section.validityDays} onChange={(event) => updateAdvancedObject("giftCardSettings", { validityDays: Number(event.target.value) })} /></label>
+            <label className="settings-input-group"><span className="muted">Minimum amount</span><input type="number" value={section.minimumAmount} onChange={(event) => updateAdvancedObject("giftCardSettings", { minimumAmount: Number(event.target.value) })} /></label>
+            <label className="settings-input-group"><span className="muted">Maximum amount</span><input type="number" value={section.maximumAmount} onChange={(event) => updateAdvancedObject("giftCardSettings", { maximumAmount: Number(event.target.value) })} /></label>
+          </div>
+        </div>
+        <div className="settings-panel-card" style={{ marginTop: 16 }}>
+          <div className="item-head" style={{ marginBottom: 12 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Quick Issue Gift Card</h3>
+              <p className="muted" style={{ margin: "4px 0 0 0" }}>Yahin se direct live gift card create kar sakte ho. Min/max/validity rules isi settings se apply hongi.</p>
+            </div>
+          </div>
+          <form className="settings-form-grid" onSubmit={issueGiftCardFromSettings}>
+            <label className="settings-input-group">
+              <span className="muted">Code</span>
+              <input value={giftCardDraft.code} onChange={(event) => setGiftCardDraft((current) => ({ ...current, code: event.target.value }))} placeholder="e.g. GC1001" />
+            </label>
+            <label className="settings-input-group">
+              <span className="muted">Title</span>
+              <input value={giftCardDraft.title} onChange={(event) => setGiftCardDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Birthday Voucher" />
+            </label>
+            <label className="settings-input-group">
+              <span className="muted">Amount</span>
+              <input type="number" value={giftCardDraft.originalAmount} onChange={(event) => setGiftCardDraft((current) => ({ ...current, originalAmount: event.target.value }))} placeholder="1000" />
+            </label>
+            <div className="settings-input-group" style={{ alignSelf: "end" }}>
+              <button type="submit" disabled={issuingGiftCard}>{issuingGiftCard ? "Issuing..." : "Issue Gift Card"}</button>
+            </div>
+          </form>
+        </div>
+        <div className="muted" style={{ margin: "12px 0", fontSize: 12 }}>
+          Upar wala block rules save karta hai, aur Quick Issue block se direct live gift card create bhi ho sakta hai. Full management aur deeper reporting ab bhi `/admin/gift-cards` module me available rahegi.
+        </div>
+        <div className="settings-panel-card">
+          <div className="item-head" style={{ marginBottom: 12 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Live Gift Cards</h3>
+              <p className="muted" style={{ margin: "4px 0 0 0" }}>Recent issued gift cards preview from the live module.</p>
+            </div>
+            <Link className="secondary-button" to="/admin/gift-cards">Create / Manage</Link>
+          </div>
+          <div className="settings-list-stack">
+            {previewRows.map((row) => (
+              <div key={row.id} className="settings-panel-card">
+                <div className="badge-row" style={{ marginBottom: 8 }}>
+                  <span className="badge">{row.code || "No code"}</span>
+                  <span className="badge">{row.isActive === false ? "Inactive" : "Active"}</span>
+                </div>
+                <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>{row.title || "Gift Card"}</div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  Original: {row.originalAmount ?? 0} | Balance: {row.balanceAmount ?? 0}
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                  Expires: {row.expiresAt ? new Date(row.expiresAt).toLocaleDateString() : "No expiry"} | Holder: {row.issuedToCustomer?.name || "Unassigned"}
+                </div>
+              </div>
+            ))}
+            {!previewRows.length ? (
+              <EmptyState
+                title="No gift cards issued yet"
+                message="Gift cards banne ke baad yahin preview me show honge. Naya gift card issue karne ke liye Open Module use karein."
+              />
+            ) : null}
           </div>
         </div>
       </>
@@ -971,6 +1979,9 @@ export default function SettingsPage() {
   const renderSmsSection = () => (
     <>
       <SectionHeader title="SMS Center" description="Configure SMS gateway credentials, sender identity, and message-routing defaults without leaving settings." badges={[form.smsSettings.gatewayProvider.replace("_PLACEHOLDER", ""), form.smsSettings.senderId || "No Sender ID"]} action={<Link className="secondary-button" to="/admin/whatsapp">Open Messaging</Link>} />
+      <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+        Gateway/provider details are synced into the live messaging configuration used by notification and WhatsApp automation defaults.
+      </div>
       <div className="settings-panel-card">
         <div className="settings-form-grid">
           <label className="settings-input-group">
@@ -989,10 +2000,11 @@ export default function SettingsPage() {
             <span className="muted">API key / auth token</span>
             <textarea rows="3" value={form.smsSettings.apiKey} onChange={(event) => setForm((current) => ({ ...current, smsSettings: { ...current.smsSettings, apiKey: event.target.value } }))} />
           </label>
-          <label className="settings-input-group">
-            <span className="muted">Gateway notes</span>
-            <textarea rows="3" value={form.paymentGatewaySettings.gatewayNotes} onChange={(event) => setForm((current) => ({ ...current, paymentGatewaySettings: { ...current.paymentGatewaySettings, gatewayNotes: event.target.value } }))} />
-          </label>
+          <div className="settings-input-group" style={{ alignSelf: "end" }}>
+            <span className="muted" style={{ fontSize: 12 }}>
+              Provider, sender ID, and auth token are the live values pushed into messaging defaults. Extra notes were removed here to avoid fake saved fields with no runtime effect.
+            </span>
+          </div>
         </div>
       </div>
     </>
@@ -1003,10 +2015,14 @@ export default function SettingsPage() {
     const updateSegment = (id, patch) => updateArrayCollection("crmSegments", segments.map((item) => item.id === id ? { ...item, ...patch } : item));
     return (
       <>
-        <SectionHeader title="CRM Segment" description="Create reusable customer segments for campaigns, loyalty outreach, and targeted service pushes." badges={[`${segments.length} saved segments`]} action={<Link className="secondary-button" to="/admin/campaigns">Open Campaigns</Link>} />
+        <SectionHeader title="CRM Segment" description="Create reusable customer segments for campaigns, loyalty outreach, and targeted service pushes." badges={[`${segments.length} saved segments`, `${summary.customers.length} live customers`]} action={<Link className="secondary-button" to="/admin/campaigns">Open Campaigns</Link>} />
         <div className="settings-list-stack">
           {segments.map((segment) => (
             <div key={segment.id} className="settings-panel-card">
+              <div className="badge-row" style={{ marginBottom: 12 }}>
+                <span className="badge">{segment.active === false ? "Inactive" : "Active"}</span>
+                <span className="badge">{segmentPreviewCounts[segment.id] ?? 0} guests matched</span>
+              </div>
               <div className="settings-form-grid">
                 <label className="settings-input-group"><span className="muted">Name</span><input value={segment.name} onChange={(event) => updateSegment(segment.id, { name: event.target.value })} /></label>
                 <label className="settings-input-group"><span className="muted">Description</span><input value={segment.description} onChange={(event) => updateSegment(segment.id, { description: event.target.value })} /></label>
@@ -1044,41 +2060,110 @@ export default function SettingsPage() {
 
   const renderReferralSection = () => {
     const referral = form.advancedSettings.referralSettings;
+    const update = (patch) => updateAdvancedObject("referralSettings", patch);
     return (
       <>
-        <SectionHeader title="Referrals" description="Control whether referrals are active and define separate benefits for the referrer and the referred guest." badges={[referral.enabled ? "Referral Enabled" : "Referral Disabled", `Limit ${referral.maxReferLimit}`]} />
-        <div className="settings-panel-card">
-          <div className="settings-toggle-grid">
-            <ToggleRow checked={referral.enabled} label="Enable referral program" onChange={(value) => updateAdvancedObject("referralSettings", { enabled: value })} />
-            <label className="settings-input-group"><span className="muted">Max refer limit</span><input type="number" value={referral.maxReferLimit} onChange={(event) => updateAdvancedObject("referralSettings", { maxReferLimit: Number(event.target.value) })} /></label>
-            <label className="settings-input-group">
-              <span className="muted">Referrer reward mode</span>
-              <select value={referral.referrerRewardMode} onChange={(event) => updateAdvancedObject("referralSettings", { referrerRewardMode: event.target.value })}>
-                <option value="fixed">Fixed</option>
-                <option value="percent">Percent</option>
-              </select>
-            </label>
-            <label className="settings-input-group"><span className="muted">Referrer reward value</span><input type="number" value={referral.referrerRewardValue} onChange={(event) => updateAdvancedObject("referralSettings", { referrerRewardValue: Number(event.target.value) })} /></label>
-            <label className="settings-input-group">
-              <span className="muted">Referred guest reward mode</span>
-              <select value={referral.referredRewardMode} onChange={(event) => updateAdvancedObject("referralSettings", { referredRewardMode: event.target.value })}>
-                <option value="fixed">Fixed</option>
-                <option value="percent">Percent</option>
-              </select>
-            </label>
-            <label className="settings-input-group"><span className="muted">Referred guest reward value</span><input type="number" value={referral.referredRewardValue} onChange={(event) => updateAdvancedObject("referralSettings", { referredRewardValue: Number(event.target.value) })} /></label>
+        <SectionHeader
+          title="Referral"
+          description="Control whether referrals are active and define separate benefits for the referrer and the referred guest."
+          badges={[referral.enabled ? "Enabled" : "Disabled", `Max Refer Limit ${referral.maxReferLimit}`]}
+        />
+
+        <div className="settings-panel-card" style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>Referral</span>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, cursor: "pointer" }}>
+                <input type="checkbox" checked={referral.enabled} onChange={(e) => update({ enabled: e.target.checked })} style={{ opacity: 0, width: 0, height: 0 }} />
+                <span style={{
+                  position: "absolute", inset: 0, borderRadius: 12, transition: "0.3s",
+                  background: referral.enabled ? "#2563eb" : "#cbd5e1"
+                }} />
+                <span style={{
+                  position: "absolute", top: 2, left: referral.enabled ? 22 : 2, width: 20, height: 20,
+                  borderRadius: "50%", background: "white", transition: "0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
+                }} />
+              </label>
+              <span style={{ fontSize: 13, color: referral.enabled ? "#2563eb" : "#64748b", fontWeight: 500 }}>
+                {referral.enabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <div style={{ marginLeft: "auto" }}>
+              <label className="settings-input-group" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <span className="muted" style={{ whiteSpace: "nowrap" }}>Max Refer Limit</span>
+                <input type="number" value={referral.maxReferLimit} onChange={(e) => update({ maxReferLimit: Number(e.target.value) })}
+                  style={{ width: 100, padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          {/* Benefit for Referral (Referrer) */}
+          <div className="settings-panel-card">
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#2563eb", marginBottom: 20 }}>Benefit for Referral</div>
+            <div style={{ display: "grid", gap: 16 }}>
+              <label className="settings-input-group">
+                <span className="muted">Max Benefit Amount</span>
+                <input type="number" value={referral.referrerMaxBenefitAmount} onChange={(e) => update({ referrerMaxBenefitAmount: Number(e.target.value) })} />
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "end" }}>
+                <label className="settings-input-group">
+                  <span className="muted">Fixed Amount</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13, color: "#64748b" }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</span>
+                    <input type="number" value={referral.referrerFixedAmount} onChange={(e) => update({ referrerFixedAmount: Number(e.target.value) })} style={{ flex: 1 }} />
+                  </div>
+                </label>
+                <span style={{ fontSize: 13, color: "#94a3b8", paddingBottom: 4 }}>OR</span>
+                <label className="settings-input-group">
+                  <span className="muted">Percentage</span>
+                  <input type="number" value={referral.referrerPercentage} onChange={(e) => update({ referrerPercentage: Number(e.target.value) })} />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Benefit for Referred Guest */}
+          <div className="settings-panel-card">
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#2563eb", marginBottom: 20 }}>Benefit for Referred Guest</div>
+            <div style={{ display: "grid", gap: 16 }}>
+              <label className="settings-input-group">
+                <span className="muted">Max Benefit Amount</span>
+                <input type="number" value={referral.referredMaxBenefitAmount} onChange={(e) => update({ referredMaxBenefitAmount: Number(e.target.value) })} />
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "end" }}>
+                <label className="settings-input-group">
+                  <span className="muted">Fixed Amount</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13, color: "#64748b" }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</span>
+                    <input type="number" value={referral.referredFixedAmount} onChange={(e) => update({ referredFixedAmount: Number(e.target.value) })} style={{ flex: 1 }} />
+                  </div>
+                </label>
+                <span style={{ fontSize: 13, color: "#94a3b8", paddingBottom: 4 }}>OR</span>
+                <label className="settings-input-group">
+                  <span className="muted">Percentage</span>
+                  <input type="number" value={referral.referredPercentage} onChange={(e) => update({ referredPercentage: Number(e.target.value) })} />
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </>
     );
   };
 
-  const renderSimpleListSection = (title, key, description, fieldDefs) => {
+  const renderSimpleListSection = (title, key, description, fieldDefs, options = {}) => {
     const rows = form.advancedSettings[key];
     const updateRow = (id, patch) => updateArrayCollection(key, rows.map((row) => row.id === id ? { ...row, ...patch } : row));
     return (
       <>
-        <SectionHeader title={title} description={description} badges={[`${rows.length} entries`]} />
+        <SectionHeader title={title} description={description} badges={options.badges || [`${rows.length} entries`]} action={options.action || null} />
+        {options.helper ? (
+          <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+            {options.helper}
+          </div>
+        ) : null}
         <div className="settings-list-stack">
           {rows.map((row) => (
             <div key={row.id} className="settings-panel-card">
@@ -1111,7 +2196,15 @@ export default function SettingsPage() {
 
   const renderLegalSection = (title, key) => (
     <>
-      <SectionHeader title={title} description={`Keep ${title.toLowerCase()} editable directly from the owner settings workspace.`} badges={[form.advancedSettings.legalContent[key] ? "Configured" : "Draft"]} />
+      <SectionHeader
+        title={title}
+        description={`Keep ${title.toLowerCase()} editable directly from the owner settings workspace.`}
+        badges={[form.advancedSettings.legalContent[key] ? "Configured" : "Draft", salonSlug ? "Storefront linked" : "Portal linked"]}
+        action={salonSlug ? <Link className="secondary-button" to={`/site/${salonSlug}/${key === "privacyPolicy" ? "privacy" : "terms"}`}>Preview Page</Link> : null}
+      />
+      <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+        Saved legal copy is returned by the public salon API and rendered on the linked storefront legal page.
+      </div>
       <div className="settings-panel-card">
         <textarea rows="14" value={form.advancedSettings.legalContent[key]} onChange={(event) => updateAdvancedObject("legalContent", { [key]: event.target.value })} placeholder={`Write ${title.toLowerCase()} here`} />
       </div>
@@ -1123,6 +2216,9 @@ export default function SettingsPage() {
     return (
       <>
         <SectionHeader title="Incentive" description="Set the default payout logic and approval approach before deeper incentive rules are configured." badges={[`${summary.incentives.length} live incentive rules`]} action={<Link className="secondary-button" to="/admin/incentives">Open Incentives</Link>} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Saving here updates the default incentive rule that the live incentive/payroll modules can build on top of.
+        </div>
         <div className="settings-panel-card">
           <div className="settings-toggle-grid">
             <ToggleRow checked={incentive.enabled} label="Enable incentives" onChange={(value) => updateAdvancedObject("incentiveSettings", { enabled: value })} />
@@ -1148,7 +2244,10 @@ export default function SettingsPage() {
     const footer = form.advancedSettings.footerContent;
     return (
       <>
-        <SectionHeader title="Footer Content" description="Manage receipt footer messaging and brand footer copy from one polished editor." badges={[form.invoiceFooter ? "Invoice Footer Ready" : "Invoice Footer Empty"]} />
+        <SectionHeader title="Footer Content" description="Manage receipt footer messaging and brand footer copy from one polished editor." badges={[form.invoiceFooter ? "Invoice Footer Ready" : "Invoice Footer Empty"]} action={<Link className="secondary-button" to="/site">Open Storefront</Link>} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Invoice footer is used in POS billing, while support/social/brand footer copy is rendered on the storefront footer.
+        </div>
         <div className="settings-panel-card">
           <div className="settings-form-grid">
             <label className="settings-input-group"><span className="muted">Invoice footer</span><textarea rows="4" value={form.invoiceFooter} onChange={(event) => setForm((current) => ({ ...current, invoiceFooter: event.target.value }))} /></label>
@@ -1177,13 +2276,13 @@ export default function SettingsPage() {
       case "access-control":
         return renderAccessControlSection();
       case "loyalty":
-        return renderProgramSection("Loyalty", "loyaltySettings", "Set the default loyalty engine values before running live rules and adjustments.", [`${summary.loyaltyRules.length} live rules`], "/admin/loyalty");
+        return renderLoyaltySettingsSection();
       case "membership":
         return renderProgramSection("Membership", "membershipSettings", "Control recurring plan behavior and customer membership guardrails from settings.", [`${summary.memberships.length} live plans`], "/admin/memberships");
       case "packages":
         return renderProgramSection("Packages", "packageSettings", "Define package redemption and transfer defaults before staff manages packages live.", [`${summary.packages.length} live packages`], "/admin/packages");
       case "gift-card":
-        return renderProgramSection("Gift Card", "giftCardSettings", "Configure gift card validity, amount bands, and operational readiness.", [`${summary.giftCards.length} gift cards`], "/admin/gift-cards");
+        return renderGiftCardSection();
       case "notification-settings":
         return renderNotificationsSection();
       case "sms-center":
@@ -1199,23 +2298,47 @@ export default function SettingsPage() {
           { key: "name", label: "Name" },
           { key: "description", label: "Description" },
           { key: "active", label: "Active", type: "checkbox" }
-        ]);
+        ], {
+          action: <Link className="secondary-button" to="/admin/users">Open Staff Users</Link>,
+          helper: "Saved designations appear in the staff create/edit form and are stored against each staff profile."
+        });
       case "privacy-policy":
         return renderLegalSection("Privacy Policy", "privacyPolicy");
       case "terms-and-conditions":
         return renderLegalSection("Terms & Conditions", "termsAndConditions");
       case "pnl-categories":
-        return renderSimpleListSection("PNL Categories", "pnlCategories", "Build your own income and expense buckets for future reports and controls.", [
-          { key: "name", label: "Name" },
-          { key: "type", label: "Type" },
-          { key: "active", label: "Active", type: "checkbox" }
-        ]);
+        return (
+          <>
+            {renderSimpleListSection("PNL Categories", "pnlCategories", "Build your own income and expense buckets for future reports and controls.", [
+              { key: "name", label: "Name" },
+              { key: "type", label: "Type" },
+              { key: "active", label: "Active", type: "checkbox" }
+            ], {
+              badges: [`${form.advancedSettings.pnlCategories.length} entries`, `${summary.expenseAccountInjections.length} account injections`],
+              action: <div className="inline-actions"><Link className="secondary-button" to="/admin/expenses/categories">Expense Types</Link><Link className="secondary-button" to="/admin/expenses/accounts">Ledger Accounts</Link></div>,
+              helper: "Non-income active rows are synced into live expense categories, and the linked ledger-accounts workspace now persists owner balance injections from backend settings storage."
+            })}
+            <div className="settings-panel-card" style={{ marginTop: 16 }}>
+              <div className="settings-toggle-grid">
+                <ToggleRow
+                  checked={form.advancedSettings.expenseSettings.autoApprove}
+                  label="Auto-approve expenses"
+                  helper="When off, every new expense lands in Pending and only approver roles can approve or reject it."
+                  onChange={(value) => updateAdvancedObject("expenseSettings", { autoApprove: value })}
+                />
+              </div>
+            </div>
+          </>
+        );
       case "pnl-income-taxes":
         return renderSimpleListSection("PNL Income Taxes", "pnlIncomeTaxes", "Track tax buckets used in PNL and financial reporting.", [
           { key: "name", label: "Name" },
           { key: "rate", label: "Rate", type: "number" },
           { key: "active", label: "Active", type: "checkbox" }
-        ]);
+        ], {
+          action: <Link className="secondary-button" to="/admin/services">Open Services</Link>,
+          helper: "The first active income-tax row becomes the salon default tax fallback for services that do not have an explicit tax rate."
+        });
       case "incentive":
         return renderIncentiveSection();
       case "footer-content":
@@ -1227,19 +2350,7 @@ export default function SettingsPage() {
 
   return (
     <div className="settings-workspace-wrapper">
-      <div className="settings-page-header">
-        <div className="settings-header-title">
-          <h1>Skillify ERP Settings</h1>
-          <p>Search, configure, and govern salon-wide behavior from one polished settings hub instead of scattering controls across the main sidebar.</p>
-        </div>
-        <div className="settings-header-actions">
-          <div className="badge-row">
-            {liveStats.slice(0, 4).map((item) => <span key={item.label} className="badge">{item.label} {item.value}</span>)}
-          </div>
-          <button type="button" className="secondary-button" onClick={() => navigate("/admin/dashboard")}>Back to Dashboard</button>
-          <button type="button" className="btn-save-workspace" onClick={saveWorkspace} disabled={saving}>{saving ? "Saving..." : "Save Workspace"}</button>
-        </div>
-      </div>
+
 
       {status.error ? <div className="settings-panel-card"><p className="error-text">{status.error}</p></div> : null}
       {status.success ? <div className="settings-panel-card"><p className="success-text">{status.success}</p></div> : null}
@@ -1269,25 +2380,10 @@ export default function SettingsPage() {
 
           <section className="settings-content">
             {renderSection()}
-
-            <div className="settings-panel-card">
-              <div className="section-heading">
-                <h3>Operational Notes</h3>
-                <span className="badge">Global Save</span>
-              </div>
-              <div className="settings-form-grid">
-                <label className="settings-input-group">
-                  <span className="muted">Booking notes</span>
-                  <textarea rows="4" value={form.bookingNotes} onChange={(event) => setForm((current) => ({ ...current, bookingNotes: event.target.value }))} />
-                </label>
-                <label className="settings-input-group">
-                  <span className="muted">Cancellation policy</span>
-                  <textarea rows="4" value={form.cancellationPolicy} onChange={(event) => setForm((current) => ({ ...current, cancellationPolicy: event.target.value }))} />
-                </label>
-              </div>
-              <div style={{ marginTop: 18 }}>
-                <ToggleRow checked={form.allowNegativeStock} label="Allow negative stock" helper="Emergency override for checkout and stock-moving edge cases." onChange={(value) => setForm((current) => ({ ...current, allowNegativeStock: value }))} />
-              </div>
+            
+            <div className="settings-footer-actions" style={{ marginTop: "32px", borderTop: "1px solid #e2e8f0", paddingTop: "24px" }}>
+              <button type="button" className="btn-reset" onClick={handleReset}>Reset</button>
+              <button type="button" className="btn-update" onClick={saveWorkspace} disabled={saving}>{saving ? "Saving..." : "Update"}</button>
             </div>
           </section>
         </div>
@@ -1295,3 +2391,6 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+

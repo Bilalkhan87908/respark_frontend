@@ -92,20 +92,20 @@ export default function MessageTemplatesPage() {
   return (
     <div className="page-shell" style={{ paddingBottom: 60 }}>
       <style>{`
-        .msg-card { background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.2s; position: relative; }
-        .msg-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .msg-card { background: white; border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.2s; position: relative; }
+        .msg-card:hover { transform: translateY(-2px); box-shadow: none; border-color: #cbd5e1; }
         
         .m-input { width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 14px; transition: all 0.2s; outline: none; background: #fff; }
-        .m-input:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
+        .m-input:focus { border-color: #6366f1; box-shadow: none; }
         .m-label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         
         .m-btn { padding: 12px 24px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .m-btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
-        .m-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.35); }
+        .m-btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: none; }
+        .m-btn-primary:hover { transform: translateY(-1px); box-shadow: none; }
         .m-btn-outline { background: white; border: 1px solid #cbd5e1; color: #334155; }
         .m-btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
         
-        .whatsapp-bubble { background: #dcf8c6; color: #111b21; padding: 16px; border-radius: 16px; border-top-left-radius: 0; font-size: 15px; position: relative; max-width: 90%; white-space: pre-wrap; box-shadow: 0 1px 2px rgba(0,0,0,0.1); line-height: 1.5; }
+        .whatsapp-bubble { background: #dcf8c6; color: #111b21; padding: 16px; border-radius: 16px; border-top-left-radius: 0; font-size: 15px; position: relative; max-width: 90%; white-space: pre-wrap; box-shadow: none; line-height: 1.5; }
         .whatsapp-bubble::before { content: ""; position: absolute; top: 0; left: -10px; border-width: 10px 10px 0 0; border-style: solid; border-color: #dcf8c6 transparent transparent transparent; }
       `}</style>
 

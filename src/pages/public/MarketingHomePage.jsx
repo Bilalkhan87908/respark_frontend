@@ -8,6 +8,7 @@ import homeIllustration from "../../assets/public-home-illustration.svg";
 import featuresIllustration from "../../assets/public-features-illustration.svg";
 import pricingIllustration from "../../assets/public-pricing-illustration.svg";
 import platformIllustration from "../../assets/public-platform-illustration.svg";
+import { formatCurrency, normalizeCurrencyCode } from "../../utils/currency";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -143,20 +144,6 @@ const proofStrip = [
   { label: "Deployment shape", value: "Unified multi-tenant SaaS" }
 ];
 
-function getCurrencyMeta(currencyCode) {
-  const code = String(currencyCode || "INR").toUpperCase();
-  if (code === "INR") return { code, locale: "en-IN" };
-  if (code === "PKR") return { code, locale: "en-PK" };
-  if (code === "AED") return { code, locale: "en-AE" };
-  if (code === "USD") return { code, locale: "en-US" };
-  return { code, locale: "en-IN" };
-}
-
-function formatPrice(value, currencyCode) {
-  const meta = getCurrencyMeta(currencyCode);
-  return new Intl.NumberFormat(meta.locale, { maximumFractionDigits: 0 }).format(Number(value || 0));
-}
-
 export default function MarketingHomePage() {
   const location = useLocation();
   const [settings, setSettings] = useState(null);
@@ -190,7 +177,8 @@ export default function MarketingHomePage() {
   const whatsappHref = settings?.whatsappNumber
     ? `https://wa.me/${String(settings.whatsappNumber).replace(/[^\d]/g, "")}`
     : null;
-  const pricingCurrency = String(settings?.defaultCurrency || "INR").toUpperCase();
+  const pricingCurrency = normalizeCurrencyCode(settings?.defaultCurrency || "INR");
+  const money = (value) => formatCurrency(value, pricingCurrency);
 
   const selectedPageFeatures = useMemo(() => {
     if (location.pathname === "/features") return publicFeatureCards;
@@ -441,8 +429,8 @@ export default function MarketingHomePage() {
                       {index === 1 && <strong>Popular</strong>}
                     </div>
                     <h3>{plan.name}</h3>
-                    <div className="plan-price">{pricingCurrency} {formatPrice(plan.monthlyPrice, pricingCurrency)}<small>/month</small></div>
-                    <p className="muted">Yearly {pricingCurrency} {formatPrice(plan.yearlyPrice, pricingCurrency)} | Trial {plan.trialDays} days</p>
+                    <div className="plan-price">{money(plan.monthlyPrice)}<small>/month</small></div>
+                    <p className="muted">Yearly {money(plan.yearlyPrice)} | Trial {plan.trialDays} days</p>
                     <ul className="public-list compact">
                       <li>{plan.branchLimit} branches</li>
                       <li>{plan.userLimit} users</li>

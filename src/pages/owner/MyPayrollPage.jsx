@@ -3,16 +3,21 @@ import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
-import { Wallet, Landmark, TrendingUp, DollarSign, CalendarCheck, TrendingDown, CheckCircle2 } from "lucide-react";
-
-const money = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { useAuth } from "../../context/AuthContext";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
+import { getMyWorkspaceTabs } from "../../utils/myWorkspaceTabs";
+import { Wallet, Landmark, TrendingUp, DollarSign, CalendarCheck, TrendingDown, CheckCircle2, Sparkles } from "lucide-react";
 
 export default function MyPayrollPage() {
+  const { auth } = useAuth();
+  const { formatMoney } = useSalonSettings();
   const [data, setData] = useState({
     summary: { itemCount: 0, totalBaseSalary: 0, totalCommission: 0, totalIncentive: 0, totalAdjustments: 0, totalDeductions: 0, totalNet: 0 },
     items: []
   });
   const [loading, setLoading] = useState(true);
+  const myTabs = getMyWorkspaceTabs(auth?.membership?.permissions || {});
+  const money = (value) => formatMoney(value || 0, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   useEffect(() => {
     api.get("/owner/my-payroll").then((response) => {
@@ -41,10 +46,10 @@ export default function MyPayrollPage() {
         }
         .anim-fade { animation: fadeIn 0.5s ease-out both; }
         
-        .p-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s; }
-        .p-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.05); }
+        .p-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s; }
+        .p-card:hover { transform: translateY(-2px); box-shadow: none; }
         
-        .stat-box { background: white; padding: 24px; border-radius: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+        .stat-box { background: white; padding: 24px; border-radius: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; box-shadow: none; }
         .stat-box .label { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-box .value { font-size: 28px; font-weight: 800; color: #0f172a; font-family: monospace; }
         
@@ -54,14 +59,7 @@ export default function MyPayrollPage() {
 
       <ModuleTabs
         title="My Payroll"
-        items={[
-          { label: "My Dashboard", to: "/admin/my-dashboard" },
-          { label: "My Appointments", to: "/admin/my-appointments" },
-          { label: "My Schedule", to: "/admin/my-schedule" },
-          { label: "My Commission", to: "/admin/my-commission" },
-          { label: "My Payroll", to: "/admin/my-payroll" },
-          { label: "My Profile", to: "/admin/my-profile" }
-        ]}
+        items={myTabs}
       />
 
       <div className="anim-fade" style={{ background: "linear-gradient(135deg, #0ea5e9, #0369a1)", borderRadius: 24, padding: "40px 32px", color: "white", marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -73,7 +71,7 @@ export default function MyPayrollPage() {
           <p style={{ margin: 0, color: "#e0f2fe", fontSize: 15, maxWidth: 500 }}>Review your personal salary runs, commission splits, and net payouts securely.</p>
         </div>
         <div style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)", color: "white", padding: "12px 24px", borderRadius: 20, fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.3)" }}>
-          <Landmark size={20} /> Net Pay: ₹{money(data.summary.totalNet)}
+          <Landmark size={20} /> Net Pay: {money(data.summary.totalNet)}
         </div>
       </div>
 
@@ -84,19 +82,19 @@ export default function MyPayrollPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 32 }}>
             <div className="stat-box">
               <span className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}><DollarSign size={14} color="#64748b" /> Base Salary</span>
-              <span className="value">₹{money(data.summary.totalBaseSalary)}</span>
+              <span className="value">{money(data.summary.totalBaseSalary)}</span>
             </div>
             <div className="stat-box">
               <span className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}><TrendingUp size={14} color="#16a34a" /> Commission</span>
-              <span className="value" style={{ color: "#166534" }}>+ ₹{money(data.summary.totalCommission)}</span>
+              <span className="value" style={{ color: "#166534" }}>+ {money(data.summary.totalCommission)}</span>
             </div>
             <div className="stat-box">
               <span className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}><Sparkles size={14} color="#0ea5e9" /> Incentive</span>
-              <span className="value" style={{ color: "#0369a1" }}>+ ₹{money(data.summary.totalIncentive)}</span>
+              <span className="value" style={{ color: "#0369a1" }}>+ {money(data.summary.totalIncentive)}</span>
             </div>
             <div className="stat-box" style={{ background: "#fff1f2", borderColor: "#fecdd3" }}>
               <span className="label" style={{ display: "flex", alignItems: "center", gap: 6, color: "#e11d48" }}><TrendingDown size={14} /> Deductions</span>
-              <span className="value" style={{ color: "#9f1239" }}>- ₹{money(data.summary.totalDeductions)}</span>
+              <span className="value" style={{ color: "#9f1239" }}>- {money(data.summary.totalDeductions)}</span>
             </div>
           </div>
 
@@ -126,19 +124,19 @@ export default function MyPayrollPage() {
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                        <span style={{ color: "#64748b" }}>Base</span><span style={{ fontWeight: 600, color: "#334155" }}>₹{money(item.baseSalary)}</span>
+                        <span style={{ color: "#64748b" }}>Base</span><span style={{ fontWeight: 600, color: "#334155" }}>{money(item.baseSalary)}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                        <span style={{ color: "#16a34a" }}>Commission</span><span style={{ fontWeight: 600, color: "#166534" }}>+ ₹{money(item.commissionAmount)}</span>
+                        <span style={{ color: "#16a34a" }}>Commission</span><span style={{ fontWeight: 600, color: "#166534" }}>+ {money(item.commissionAmount)}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                        <span style={{ color: "#0ea5e9" }}>Incentive</span><span style={{ fontWeight: 600, color: "#0369a1" }}>+ ₹{money(item.incentiveAmount)}</span>
+                        <span style={{ color: "#0ea5e9" }}>Incentive</span><span style={{ fontWeight: 600, color: "#0369a1" }}>+ {money(item.incentiveAmount)}</span>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                        <span style={{ color: "#e11d48" }}>Deductions</span><span style={{ fontWeight: 600, color: "#9f1239" }}>- ₹{money(totalDed)}</span>
+                        <span style={{ color: "#e11d48" }}>Deductions</span><span style={{ fontWeight: 600, color: "#9f1239" }}>- {money(totalDed)}</span>
                       </div>
                       <div style={{ gridColumn: "1/-1", display: "flex", justifyContent: "space-between", fontSize: 18, borderTop: "1px dashed #cbd5e1", paddingTop: 12, marginTop: 4 }}>
-                        <span style={{ fontWeight: 800, color: "#0f172a" }}>Net Payout</span><span style={{ fontWeight: 800, color: "#0f172a" }}>₹{money(item.netAmount)}</span>
+                        <span style={{ fontWeight: 800, color: "#0f172a" }}>Net Payout</span><span style={{ fontWeight: 800, color: "#0f172a" }}>{money(item.netAmount)}</span>
                       </div>
                     </div>
 

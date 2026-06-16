@@ -178,7 +178,7 @@
 
             <div className="pos-grand-total-row">
               <div className="pos-grand-total">
-                Grand Total <strong>₹{totals.total.toFixed(0)}</strong>
+                Grand Total <strong>{formatMoney(totals.total)}</strong>
               </div>
             </div>
 

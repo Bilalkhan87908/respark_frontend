@@ -1,23 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api } from "../../api/client";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
 import EmptyState from "../../components/EmptyState";
 import { formatApiError } from "../../utils/apiError";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import "./MembershipsPage.css";
 
 const emptyMembership = {
+  membershipType: "Fixed", // 'Fixed' or 'Percentage'
   name: "",
+  isActive: true,
+  price: "",
+  validityDays: "",
+  renewalReminder: "",
+  isSharable: false,
+  applySelectedDays: false,
+  applySelectedServices: false,
   description: "",
   benefits: [{ label: "", value: "" }],
-  price: 0,
-  validityDays: 30,
-  benefitType: "DISCOUNT_PERCENT",
-  discountValue: 10,
-  walletValue: 0,
+  benefitType: "WALLET_VALUE", // We will set this dynamically based on membershipType
+  discountValue: "",
+  walletValue: "",
   serviceIds: []
 };
-const emptyPackage = { name: "", price: 0, totalSessions: 5, validityDays: 60, services: [] };
+const emptyPackage = { name: "", price: 0, totalSessions: 5, validityDays: 60, services: [], products: [], includeProducts: false };
 const emptyPackageRedeem = { customerPackageId: "", serviceId: "", sessionsUsed: 1, note: "" };
 const normalizeRows = (value) => Array.isArray(value) ? value : value?.items || value?.rows || [];
 const normalizeBenefits = (value) => {
@@ -32,12 +40,14 @@ const cleanBenefits = (value) => normalizeBenefits(value).map((item) => ({
 export default function MembershipsPage() {
   const location = useLocation();
   const { id: routeId } = useParams();
+  const { formatMoney } = useSalonSettings();
   const customerId = location.pathname.includes("/customers/") ? routeId : "";
   const editableMembershipId = location.pathname.includes("/admin/memberships/") && location.pathname.includes("/edit") ? routeId : "";
   const editablePackageId = location.pathname.includes("/admin/packages/") && location.pathname.includes("/edit") ? routeId : "";
   const [memberships, setMemberships] = useState([]);
   const [packages, setPackages] = useState([]);
   const [services, setServices] = useState([]);
+  const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState(null);
   const [membershipForm, setMembershipForm] = useState(emptyMembership);
@@ -54,6 +64,7 @@ export default function MembershipsPage() {
     membershipResponse,
     packageResponse,
     serviceResponse,
+    productResponse,
     customerResponse,
     activeCustomerId = "",
     active = true,
@@ -65,11 +76,13 @@ export default function MembershipsPage() {
     const nextMemberships = membershipResponse.status === "fulfilled" ? normalizeRows(membershipResponse.value.data) : [];
     const nextPackages = packageResponse.status === "fulfilled" ? normalizeRows(packageResponse.value.data) : [];
     const nextServices = serviceResponse.status === "fulfilled" ? normalizeRows(serviceResponse.value.data) : [];
+    const nextProducts = productResponse?.status === "fulfilled" ? normalizeRows(productResponse.value.data) : [];
     const nextCustomers = customerResponse.status === "fulfilled" ? normalizeRows(customerResponse.value.data) : [];
 
     setMemberships(nextMemberships);
     setPackages(nextPackages);
     setServices(nextServices);
+    setProducts(nextProducts);
     setCustomers(nextCustomers);
 
     if (activeCustomerId) {
@@ -90,14 +103,20 @@ export default function MembershipsPage() {
         const membershipDetail = await api.get(`/owner/memberships/${membershipId}`);
         if (!active) return;
         setMembershipForm({
+          membershipType: membershipDetail.data.benefitType === "DISCOUNT_PERCENT" ? "Percentage" : "Fixed",
           name: membershipDetail.data.name || "",
+          isActive: true, // Assuming true by default if no active flag
           description: membershipDetail.data.description || "",
           benefits: normalizeBenefits(membershipDetail.data.benefits),
-          price: membershipDetail.data.price || 0,
-          validityDays: membershipDetail.data.validityDays || 30,
-          benefitType: membershipDetail.data.benefitType || "DISCOUNT_PERCENT",
-          discountValue: membershipDetail.data.discountValue || 0,
-          walletValue: membershipDetail.data.walletValue || 0,
+          price: membershipDetail.data.price || "",
+          validityDays: membershipDetail.data.validityDays || "",
+          renewalReminder: "", // not in db yet?
+          isSharable: false, // not in db yet?
+          applySelectedDays: false,
+          applySelectedServices: (membershipDetail.data.services || []).length > 0,
+          benefitType: membershipDetail.data.benefitType || "WALLET_VALUE",
+          discountValue: membershipDetail.data.discountValue || "",
+          walletValue: membershipDetail.data.walletValue || "",
           serviceIds: (membershipDetail.data.services || []).map((item) => item.serviceId)
         });
       } catch {
@@ -117,7 +136,12 @@ export default function MembershipsPage() {
           services: (packageDetail.data.services || []).map((item) => ({
             serviceId: item.serviceId,
             sessions: item.sessions || 1
-          }))
+          })),
+          products: (packageDetail.data.products || []).map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity || 1
+          })),
+          includeProducts: (packageDetail.data.products || []).length > 0
         });
       } catch {
         if (!active) return;
@@ -138,13 +162,14 @@ export default function MembershipsPage() {
   const loadAll = async (activeCustomerId = customerId || assignMembershipForm.customerId || assignPackageForm.customerId || "") => {
     setLoading(true);
     try {
-      const [membershipResponse, packageResponse, serviceResponse, customerResponse] = await Promise.allSettled([
+      const [membershipResponse, packageResponse, serviceResponse, productResponse, customerResponse] = await Promise.allSettled([
         api.get("/owner/memberships"),
         api.get("/owner/packages"),
         api.get("/owner/services"),
+        api.get("/owner/inventory/products"),
         api.get("/owner/customers")
       ]);
-      await applyWorkspaceData({ membershipResponse, packageResponse, serviceResponse, customerResponse, activeCustomerId });
+      await applyWorkspaceData({ membershipResponse, packageResponse, serviceResponse, productResponse, customerResponse, activeCustomerId });
     } catch (error) {
       setStatus({ error: formatApiError(error, "Could not load memberships, packages, customers, or services"), success: "" });
     } finally {
@@ -156,16 +181,18 @@ export default function MembershipsPage() {
     let active = true;
     (async () => {
       try {
-        const [membershipResponse, packageResponse, serviceResponse, customerResponse] = await Promise.allSettled([
+        const [membershipResponse, packageResponse, serviceResponse, productResponse, customerResponse] = await Promise.allSettled([
           api.get("/owner/memberships"),
           api.get("/owner/packages"),
           api.get("/owner/services"),
+          api.get("/owner/inventory/products"),
           api.get("/owner/customers")
         ]);
         await applyWorkspaceData({
           membershipResponse,
           packageResponse,
           serviceResponse,
+          productResponse,
           customerResponse,
           activeCustomerId: customerId,
           active,
@@ -221,6 +248,18 @@ export default function MembershipsPage() {
     }));
   };
 
+  const togglePackageProduct = (productId) => {
+    setPackageForm((current) => ({
+      ...current,
+      products: current.products.some((item) => item.productId === productId)
+        ? current.products.filter((item) => item.productId !== productId)
+        : [...current.products, { productId, quantity: 1 }]
+    }));
+  };
+
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+
   const activeSection = location.pathname.includes("/packages") ? "packages" : "memberships";
   const customerMembershipMode = location.pathname.includes("/customers/") && location.pathname.includes("/memberships");
   const customerPackageMode = location.pathname.includes("/customers/") && location.pathname.includes("/packages");
@@ -237,7 +276,8 @@ export default function MembershipsPage() {
   ));
 
   return (
-    <div className="page-shell">
+    <div className="mem-page">
+      <div className="page-shell">
       <ModuleTabs
         title="Memberships & Packages"
         description="Control recurring loyalty products, prepaid sessions, and service access in one revenue workspace."
@@ -254,167 +294,454 @@ export default function MembershipsPage() {
         actions={customerId ? <Link to={`/admin/customers/${customerId}/history`} className="module-tab">Back to CRM</Link> : null}
       />
       <div className="settings-section-grid">
-        {(activeSection === "memberships") && !customerMembershipMode && <div className="panel-card">
-          <h3>{membershipEditMode ? "Edit Membership Plan" : "Membership Plan"}</h3>
-          <form onSubmit={async (event) => {
-            event.preventDefault();
-            setStatus({ error: "", success: "" });
-            try {
-              if (!membershipForm.name.trim()) throw new Error("Membership name is required.");
-              const payload = {
-                ...membershipForm,
-                name: membershipForm.name.trim(),
-                description: membershipForm.description.trim(),
-                benefits: cleanBenefits(membershipForm.benefits),
-                price: Number(membershipForm.price),
-                validityDays: Number(membershipForm.validityDays),
-                discountValue: Number(membershipForm.discountValue || 0),
-                walletValue: Number(membershipForm.walletValue || 0)
-              };
-              if (membershipEditMode) {
-                await api.patch(`/owner/memberships/${editableMembershipId}`, payload);
-              } else {
-                await api.post("/owner/memberships", payload);
+        {(activeSection === "memberships") && !customerMembershipMode && (
+          <div style={{ background: "transparent", border: "none", padding: "0" }}>
+            <h3 style={{ color: "#2563eb", margin: "0 0 14px 0", fontSize: "0.88rem", fontWeight: 700, paddingBottom: "8px", borderBottom: "1px solid #f1f5f9" }}>
+              {membershipEditMode ? "Edit Membership Plan" : "Create New Membership Plan"}
+            </h3>
+            
+            <form onSubmit={async (event) => {
+              event.preventDefault();
+              setStatus({ error: "", success: "" });
+              try {
+                if (!membershipForm.name.trim()) throw new Error("Membership name is required.");
+                const isFixed = membershipForm.membershipType === "Fixed";
+                const payload = {
+                  ...membershipForm,
+                  name: membershipForm.name.trim(),
+                  description: membershipForm.description.trim(),
+                  benefits: cleanBenefits(membershipForm.benefits),
+                  price: Number(membershipForm.price),
+                  validityDays: Number(membershipForm.validityDays),
+                  benefitType: isFixed ? "WALLET_VALUE" : "DISCOUNT_PERCENT",
+                  walletValue: isFixed ? Number(membershipForm.walletValue || 0) : 0,
+                  discountValue: !isFixed ? Number(membershipForm.discountValue || 0) : 0,
+                  // Pass new fields incase backend accepts them, otherwise they are ignored safely
+                  renewalReminder: Number(membershipForm.renewalReminder || 0),
+                  isSharable: membershipForm.isSharable,
+                  applySelectedDays: membershipForm.applySelectedDays,
+                  applySelectedServices: membershipForm.applySelectedServices,
+                  serviceIds: membershipForm.applySelectedServices ? membershipForm.serviceIds : []
+                };
+                if (membershipEditMode) {
+                  await api.patch(`/owner/memberships/${editableMembershipId}`, payload);
+                } else {
+                  await api.post("/owner/memberships", payload);
+                }
+                setMembershipForm(emptyMembership);
+                await loadAll();
+                setStatus({ error: "", success: membershipEditMode ? "Membership updated." : "Membership created." });
+              } catch (error) {
+                setStatus({ error: formatApiError(error, "Could not save membership"), success: "" });
               }
-              setMembershipForm(emptyMembership);
-              await loadAll();
-              setStatus({ error: "", success: membershipEditMode ? "Membership updated." : "Membership created." });
-            } catch (error) {
-              setStatus({ error: formatApiError(error, "Could not save membership"), success: "" });
-            }
-          }} style={{ display: "grid", gap: 10 }}>
-            <label>
-              <span className="muted">Membership name</span>
-              <input value={membershipForm.name} placeholder="Membership name" onChange={(event) => setMembershipForm((current) => ({ ...current, name: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Plan summary</span>
-              <textarea
-                rows="3"
-                value={membershipForm.description}
-                placeholder="Explain this membership for staff and customers"
-                onChange={(event) => setMembershipForm((current) => ({ ...current, description: event.target.value }))}
-              />
-            </label>
-            <label>
-              <span className="muted">Price</span>
-              <input type="number" min="0" value={membershipForm.price} placeholder="Price" onChange={(event) => setMembershipForm((current) => ({ ...current, price: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Validity days</span>
-              <input type="number" min="1" value={membershipForm.validityDays} placeholder="Validity days" onChange={(event) => setMembershipForm((current) => ({ ...current, validityDays: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Discount %</span>
-              <select value={membershipForm.benefitType} onChange={(event) => setMembershipForm((current) => ({ ...current, benefitType: event.target.value }))}>
-              <option value="DISCOUNT_PERCENT">Discount %</option>
-              <option value="DISCOUNT_AMOUNT">Discount Amount</option>
-              <option value="WALLET_VALUE">Wallet Value</option>
-            </select>
-            </label>
-            <label>
-              <span className="muted">Discount value</span>
-              <input type="number" min="0" value={membershipForm.discountValue} placeholder="Discount value" onChange={(event) => setMembershipForm((current) => ({ ...current, discountValue: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Wallet value</span>
-              <input type="number" min="0" value={membershipForm.walletValue} placeholder="Wallet value" onChange={(event) => setMembershipForm((current) => ({ ...current, walletValue: event.target.value }))} />
-            </label>
-            <div className="panel-card" style={{ padding: 16, margin: 0, background: "#f8fbff" }}>
-              <div className="item-head">
-                <div>
-                  <strong>What this membership includes</strong>
-                  <p className="muted" style={{ margin: "4px 0 0" }}>Admin yahan khud add karega ke membership mein kya kya mil raha hai.</p>
+            }} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+
+              {/* Membership Type Radio */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "8px" }}>Membership Type:</label>
+                <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.9rem", color: "#0f172a" }}>
+                    <input 
+                      type="radio" 
+                      name="membershipType" 
+                      value="Fixed" 
+                      checked={membershipForm.membershipType === "Fixed"} 
+                      onChange={() => setMembershipForm({ ...membershipForm, membershipType: "Fixed" })}
+                      style={{ accentColor: "#e11d48", width: "16px", height: "16px" }}
+                    />
+                    Fixed
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.9rem", color: "#0f172a" }}>
+                    <input 
+                      type="radio" 
+                      name="membershipType" 
+                      value="Percentage" 
+                      checked={membershipForm.membershipType === "Percentage"} 
+                      onChange={() => setMembershipForm({ ...membershipForm, membershipType: "Percentage" })}
+                      style={{ accentColor: "#e11d48", width: "16px", height: "16px" }}
+                    />
+                    Percentage
+                  </label>
                 </div>
-                <button type="button" className="secondary-button" onClick={addMembershipBenefit}>Add Benefit</button>
               </div>
-              <div className="list-stack" style={{ marginTop: 12 }}>
-                {normalizeBenefits(membershipForm.benefits).map((benefit, index) => (
-                  <div key={`${index}-${benefit.label}`} className="form-grid" style={{ alignItems: "end" }}>
-                    <label>
-                      <span className="muted">Benefit title</span>
-                      <input value={benefit.label} placeholder="e.g. Haircut discount" onChange={(event) => updateMembershipBenefit(index, { label: event.target.value })} />
-                    </label>
-                    <label>
-                      <span className="muted">Details</span>
-                      <input value={benefit.value} placeholder="e.g. 20% off every visit" onChange={(event) => updateMembershipBenefit(index, { value: event.target.value })} />
-                    </label>
-                    <button type="button" className="secondary-button" onClick={() => removeMembershipBenefit(index)}>Remove</button>
+
+              {/* Name & Active */}
+              <div style={{ display: "flex", gap: "24px", alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: "250px" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Enter Name" 
+                    value={membershipForm.name} 
+                    onChange={(e) => setMembershipForm({ ...membershipForm, name: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", height: "38px" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={membershipForm.isActive} 
+                    onChange={(e) => setMembershipForm({ ...membershipForm, isActive: e.target.checked })}
+                    style={{ accentColor: "#3b82f6", width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a" }}>Active</span>
+                </div>
+              </div>
+
+              {/* Fees, Validity, Renewal Reminder, Standard Discount */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Fees</label>
+                  <input 
+                    type="number" 
+                    placeholder="Enter Fee" 
+                    value={membershipForm.price} 
+                    onChange={(e) => setMembershipForm({ ...membershipForm, price: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Validity</label>
+                  <input 
+                    type="number" 
+                    placeholder="In Days" 
+                    value={membershipForm.validityDays} 
+                    onChange={(e) => setMembershipForm({ ...membershipForm, validityDays: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Renewal Reminder</label>
+                  <input 
+                    type="number" 
+                    placeholder="In Days" 
+                    value={membershipForm.renewalReminder} 
+                    onChange={(e) => setMembershipForm({ ...membershipForm, renewalReminder: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                {membershipForm.membershipType === "Percentage" && (
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Standard Discount '%'</label>
+                    <input 
+                      type="number" 
+                      placeholder="Enter %" 
+                      value={membershipForm.discountValue} 
+                      onChange={(e) => setMembershipForm({ ...membershipForm, discountValue: e.target.value })} 
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                    />
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-            <div className="badge-row">
-              {services.map((service) => (
-                <button type="button" key={service.id} className={membershipForm.serviceIds.includes(service.id) ? "" : "secondary-button"} onClick={() => toggleMembershipService(service.id)}>
-                  {service.name}
-                </button>
-              ))}
-            </div>
-            <button>{membershipEditMode ? "Save Membership" : "Create Membership"}</button>
-          </form>
-        </div>}
 
-        {(activeSection === "packages") && !customerPackageMode && <div className="panel-card">
-          <h3>{packageEditMode ? "Edit Package" : "Package"}</h3>
-          <form onSubmit={async (event) => {
-            event.preventDefault();
-            setStatus({ error: "", success: "" });
-            try {
-              if (!packageForm.name.trim()) throw new Error("Package name is required.");
-              if (!packageForm.services.length) throw new Error("Select at least one service for this package.");
-              const payload = {
-                ...packageForm,
-                name: packageForm.name.trim(),
-                price: Number(packageForm.price),
-                totalSessions: Number(packageForm.totalSessions),
-                validityDays: Number(packageForm.validityDays),
-                services: packageForm.services.map((item) => ({
-                  serviceId: item.serviceId,
-                  sessions: Number(item.sessions || 1)
-                }))
-              };
-              if (packageEditMode) {
-                await api.patch(`/owner/packages/${editablePackageId}`, payload);
-              } else {
-                await api.post("/owner/packages", payload);
+              {/* Benefit Amount (Fixed Only) */}
+              {membershipForm.membershipType === "Fixed" && (
+                <div style={{ width: "200px" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Benefit Amount</label>
+                  <input 
+                    type="number" 
+                    placeholder="Enter Amount" 
+                    value={membershipForm.walletValue} 
+                    onChange={(e) => setMembershipForm({ ...membershipForm, walletValue: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+              )}
+
+              {/* Toggles */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", width: "fit-content" }}>
+                  <span style={{ fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>Membership Sharable</span>
+                  <div style={{ position: "relative", width: "36px", height: "20px", background: membershipForm.isSharable ? "#3b82f6" : "#cbd5e1", borderRadius: "20px", transition: "background 0.3s" }}>
+                    <div style={{ position: "absolute", top: "2px", left: membershipForm.isSharable ? "18px" : "2px", width: "16px", height: "16px", background: "white", borderRadius: "50%", transition: "left 0.3s" }}></div>
+                  </div>
+                  <input type="checkbox" checked={membershipForm.isSharable} onChange={e => setMembershipForm({...membershipForm, isSharable: e.target.checked})} style={{ display: "none" }} />
+                </label>
+                
+                {membershipForm.membershipType === "Percentage" && (
+                  <>
+                    <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", width: "fit-content" }}>
+                      <span style={{ fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>Apply Membership For Selected Days</span>
+                      <div style={{ position: "relative", width: "36px", height: "20px", background: membershipForm.applySelectedDays ? "#3b82f6" : "#cbd5e1", borderRadius: "20px", transition: "background 0.3s" }}>
+                        <div style={{ position: "absolute", top: "2px", left: membershipForm.applySelectedDays ? "18px" : "2px", width: "16px", height: "16px", background: "white", borderRadius: "50%", transition: "left 0.3s" }}></div>
+                      </div>
+                      <input type="checkbox" checked={membershipForm.applySelectedDays} onChange={e => setMembershipForm({...membershipForm, applySelectedDays: e.target.checked})} style={{ display: "none" }} />
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", width: "fit-content" }}>
+                      <span style={{ fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>Apply Membership On Selected Services</span>
+                      <div style={{ position: "relative", width: "36px", height: "20px", background: membershipForm.applySelectedServices ? "#3b82f6" : "#cbd5e1", borderRadius: "20px", transition: "background 0.3s" }}>
+                        <div style={{ position: "absolute", top: "2px", left: membershipForm.applySelectedServices ? "18px" : "2px", width: "16px", height: "16px", background: "white", borderRadius: "50%", transition: "left 0.3s" }}></div>
+                      </div>
+                      <input type="checkbox" checked={membershipForm.applySelectedServices} onChange={e => setMembershipForm({...membershipForm, applySelectedServices: e.target.checked})} style={{ display: "none" }} />
+                    </label>
+                  </>
+                )}
+              </div>
+
+              {/* Service Selection for Percentage (If enabled) */}
+              {membershipForm.membershipType === "Percentage" && membershipForm.applySelectedServices && (
+                <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "8px" }}>Select Services</label>
+                  <input 
+                    type="text" 
+                    placeholder="Search services..." 
+                    value={serviceSearch} 
+                    onChange={(e) => setServiceSearch(e.target.value)} 
+                    style={{ marginBottom: "12px", padding: "8px 12px", width: "100%", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", fontSize: "0.8rem", outline: "none" }}
+                  />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
+                    {services.filter(s => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).map((service) => {
+                      const isSelected = membershipForm.serviceIds.includes(service.id);
+                      return (
+                        <button 
+                          type="button" 
+                          key={service.id} 
+                          onClick={() => {
+                            setMembershipForm(cur => ({
+                              ...cur,
+                              serviceIds: isSelected ? cur.serviceIds.filter(id => id !== service.id) : [...cur.serviceIds, service.id]
+                            }));
+                          }}
+                          style={{
+                            padding: "6px 12px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+                            background: isSelected ? "#3b82f6" : "white",
+                            color: isSelected ? "white" : "#475569",
+                            border: isSelected ? "1px solid #3b82f6" : "1px solid #cbd5e1"
+                          }}
+                        >
+                          {service.name}
+                        </button>
+                      );
+                    })}
+                    {services.filter(s => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 && <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>No services found</span>}
+                  </div>
+                </div>
+              )}
+
+              <hr style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "10px 0" }} />
+
+              {/* Bottom Totals */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ alignSelf: "flex-end", fontSize: "0.9rem", color: "#475569", fontWeight: 600 }}>
+                  Total Amount To Pay: <span style={{ color: "#0f172a", fontWeight: 800 }}>{formatMoney(membershipForm.price || 0)}</span>
+                </div>
+                
+                {membershipForm.membershipType === "Fixed" && (
+                  <div style={{ background: "#e2e8f0", padding: "12px", borderRadius: "4px", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.9rem", color: "#334155" }}>Final benefit amount is: <strong style={{ color: "#3b82f6" }}>{formatMoney(membershipForm.walletValue || 0)}</strong></span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
+                <button type="button" onClick={() => setMembershipForm(emptyMembership)} style={{ padding: "8px 24px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "white", color: "#475569", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+                <button type="submit" style={{ padding: "8px 32px", borderRadius: "6px", border: "none", background: "#3b82f6", color: "white", fontWeight: 600, cursor: "pointer", transition: "opacity 0.2s" }}>Save</button>
+              </div>
+
+            </form>
+          </div>
+        )}
+
+        {(activeSection === "packages") && !customerPackageMode && (
+          <div style={{ background: "transparent", border: "none", padding: "0" }}>
+            <h3 style={{ color: "#2563eb", margin: "0 0 14px 0", fontSize: "0.88rem", fontWeight: 700, paddingBottom: "8px", borderBottom: "1px solid #f1f5f9" }}>
+              {packageEditMode ? "Edit Package" : "Package"}
+            </h3>
+            <form onSubmit={async (event) => {
+              event.preventDefault();
+              setStatus({ error: "", success: "" });
+              try {
+                if (!packageForm.name.trim()) throw new Error("Package name is required.");
+                if (!packageForm.services.length) throw new Error("Select at least one service for this package.");
+                const payload = {
+                  ...packageForm,
+                  name: packageForm.name.trim(),
+                  price: Number(packageForm.price),
+                  totalSessions: Number(packageForm.totalSessions),
+                  validityDays: Number(packageForm.validityDays),
+                  services: packageForm.services.map((item) => ({
+                    serviceId: item.serviceId,
+                    sessions: Number(item.sessions || 1)
+                  })),
+                  products: packageForm.includeProducts ? packageForm.products.map((item) => ({
+                    productId: item.productId,
+                    quantity: Number(item.quantity || 1)
+                  })) : []
+                };
+                if (packageEditMode) {
+                  await api.patch(`/owner/packages/${editablePackageId}`, payload);
+                } else {
+                  await api.post("/owner/packages", payload);
+                }
+                setPackageForm(emptyPackage);
+                setServiceSearch("");
+                setProductSearch("");
+                await loadAll();
+                setStatus({ error: "", success: packageEditMode ? "Package updated." : "Package created." });
+              } catch (error) {
+                setStatus({ error: formatApiError(error, "Could not save package"), success: "" });
               }
-              setPackageForm(emptyPackage);
-              await loadAll();
-              setStatus({ error: "", success: packageEditMode ? "Package updated." : "Package created." });
-            } catch (error) {
-              setStatus({ error: formatApiError(error, "Could not save package"), success: "" });
-            }
-          }} style={{ display: "grid", gap: 10 }}>
-            <label>
-              <span className="muted">Package name</span>
-              <input value={packageForm.name} placeholder="Package name" onChange={(event) => setPackageForm((current) => ({ ...current, name: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Price</span>
-              <input type="number" min="0" value={packageForm.price} placeholder="Price" onChange={(event) => setPackageForm((current) => ({ ...current, price: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Total sessions</span>
-              <input type="number" min="1" value={packageForm.totalSessions} placeholder="Total sessions" onChange={(event) => setPackageForm((current) => ({ ...current, totalSessions: event.target.value }))} />
-            </label>
-            <label>
-              <span className="muted">Validity days</span>
-              <input type="number" min="1" value={packageForm.validityDays} placeholder="Validity days" onChange={(event) => setPackageForm((current) => ({ ...current, validityDays: event.target.value }))} />
-            </label>
-            <div className="badge-row">
-              {services.map((service) => (
-                <button type="button" key={service.id} className={packageForm.services.some((item) => item.serviceId === service.id) ? "" : "secondary-button"} onClick={() => togglePackageService(service.id)}>
-                  {service.name}
-                </button>
-              ))}
-            </div>
-            <button>{packageEditMode ? "Save Package" : "Create Package"}</button>
-          </form>
-        </div>}
-      </div>
+            }} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              
+              {/* Name & Active */}
+              <div style={{ display: "flex", gap: "24px", alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: "250px" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Package name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Bridal Package" 
+                    value={packageForm.name} 
+                    onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", height: "38px" }}>
+                  <input 
+                    type="checkbox" 
+                    defaultChecked={true}
+                    style={{ accentColor: "#3b82f6", width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a" }}>Active</span>
+                </div>
+              </div>
 
-      <div className="settings-section-grid" style={{ marginTop: 18 }}>
+              {/* Price, Total Sessions, Validity */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Price</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="0" 
+                    value={packageForm.price} 
+                    onChange={(e) => setPackageForm({ ...packageForm, price: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Total sessions</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    placeholder="5" 
+                    value={packageForm.totalSessions} 
+                    onChange={(e) => setPackageForm({ ...packageForm, totalSessions: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "6px" }}>Validity (Days)</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    placeholder="60" 
+                    value={packageForm.validityDays} 
+                    onChange={(e) => setPackageForm({ ...packageForm, validityDays: e.target.value })} 
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", boxSizing: "border-box", outline: "none" }}
+                  />
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer", width: "fit-content" }}>
+                  <span style={{ fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>Does this package include physical products?</span>
+                  <div style={{ position: "relative", width: "36px", height: "20px", background: packageForm.includeProducts ? "#3b82f6" : "#cbd5e1", borderRadius: "20px", transition: "background 0.3s" }}>
+                    <div style={{ position: "absolute", top: "2px", left: packageForm.includeProducts ? "18px" : "2px", width: "16px", height: "16px", background: "white", borderRadius: "50%", transition: "left 0.3s" }}></div>
+                  </div>
+                  <input type="checkbox" checked={packageForm.includeProducts} onChange={e => setPackageForm({...packageForm, includeProducts: e.target.checked})} style={{ display: "none" }} />
+                </label>
+              </div>
+
+              {/* Service Selection */}
+              <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "8px" }}>Included Services</label>
+                <input 
+                  type="text" 
+                  placeholder="Search services..." 
+                  value={serviceSearch} 
+                  onChange={(e) => setServiceSearch(e.target.value)} 
+                  style={{ marginBottom: "12px", padding: "8px 12px", width: "100%", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", fontSize: "0.8rem", outline: "none" }}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
+                  {services.filter(s => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).map((service) => {
+                    const isSelected = packageForm.services.some((item) => item.serviceId === service.id);
+                    return (
+                      <button 
+                        type="button" 
+                        key={service.id} 
+                        onClick={() => togglePackageService(service.id)}
+                        style={{
+                          padding: "6px 12px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+                          background: isSelected ? "#3b82f6" : "white",
+                          color: isSelected ? "white" : "#475569",
+                          border: isSelected ? "1px solid #3b82f6" : "1px solid #cbd5e1"
+                        }}
+                      >
+                        {service.name}
+                      </button>
+                    );
+                  })}
+                  {services.filter(s => s.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 && <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>No services found</span>}
+                </div>
+              </div>
+
+              {/* Product Selection */}
+              {packageForm.includeProducts && (
+                <div style={{ background: "#fdf8f5", padding: "16px", borderRadius: "8px", border: "1px solid #f0e1df" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", color: "#475569", fontWeight: 600, marginBottom: "8px" }}>Included Products</label>
+                  <input 
+                    type="text" 
+                    placeholder="Search products..." 
+                    value={productSearch} 
+                    onChange={(e) => setProductSearch(e.target.value)} 
+                    style={{ marginBottom: "12px", padding: "8px 12px", width: "100%", borderRadius: "6px", border: "1px solid #cbd5e1", boxSizing: "border-box", fontSize: "0.8rem", outline: "none" }}
+                  />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
+                    {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).map((product) => {
+                      const isSelected = packageForm.products.some((item) => item.productId === product.id);
+                      return (
+                        <button 
+                          type="button" 
+                          key={product.id} 
+                          onClick={() => togglePackageProduct(product.id)}
+                          style={{
+                            padding: "6px 12px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", transition: "all 0.2s",
+                            background: isSelected ? "#f97316" : "white",
+                            color: isSelected ? "white" : "#475569",
+                            border: isSelected ? "1px solid #f97316" : "1px solid #cbd5e1"
+                          }}
+                        >
+                          {product.name}
+                        </button>
+                      );
+                    })}
+                    {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>No products found</span>}
+                  </div>
+                </div>
+              )}
+
+              <hr style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "10px 0" }} />
+
+              {/* Bottom Totals */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ alignSelf: "flex-end", fontSize: "0.9rem", color: "#475569", fontWeight: 600 }}>
+                  Total Amount To Pay: <span style={{ color: "#0f172a", fontWeight: 800 }}>{formatMoney(packageForm.price || 0)}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
+                <button type="button" onClick={() => setPackageForm(emptyPackage)} style={{ padding: "8px 24px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "white", color: "#475569", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+                <button type="submit" style={{ padding: "8px 32px", borderRadius: "6px", border: "none", background: "#3b82f6", color: "white", fontWeight: 600, cursor: "pointer", transition: "opacity 0.2s" }}>Save</button>
+              </div>
+
+            </form>
+          </div>
+        )}
+
       {(activeSection === "memberships") && <div className="panel-card">
           <h3>{customerMembershipMode ? "Assigned Memberships" : "Membership Plans"}</h3>
           {loading ? <PageLoader compact title="Loading memberships" message="Preparing plans, assignments, and customer usage balances." /> : null}
@@ -487,9 +814,7 @@ export default function MembershipsPage() {
             {!customerPackageMode && !loading && !packages.length && <EmptyState title="No packages yet" message="Create your first package to launch prepaid session bundles." />}
           </div>
         </div>}
-      </div>
 
-      <div className="settings-section-grid" style={{ marginTop: 18 }}>
         {(activeSection === "memberships") && <div className="panel-card">
           <h3>Assign Membership</h3>
           <div className="item-meta" style={{ marginBottom: 10 }}>{customerScopeLabel}</div>
@@ -674,33 +999,6 @@ export default function MembershipsPage() {
         </div>
       )}
 
-      <div className="three-col" style={{ marginTop: 18 }}>
-        <div className="panel-card">
-          <h3>Membership Variants</h3>
-          <p className="muted">Current live engine supports discount, fixed-value, wallet-value, and service-specific memberships. Group/family and hourly memberships remain clearly isolated placeholders so plan architecture is ready without unstable billing rules in this phase.</p>
-          <div className="badge-row">
-            <span className="badge">Group / Family Placeholder</span>
-            <span className="badge">Hourly Placeholder</span>
-          </div>
-        </div>
-        <div className="panel-card">
-          <h3>Package Bundles</h3>
-          <p className="muted">Service-session packages are live. Mixed product + service bundle packaging is intentionally held as a placeholder to keep current redemption logic transaction-safe and predictable.</p>
-          <div className="badge-row">
-            <span className="badge">Service Packages Live</span>
-            <span className="badge">Bundle Placeholder</span>
-          </div>
-        </div>
-        <div className="panel-card">
-          <h3>Incentive Readiness</h3>
-          <p className="muted">Staff commission and invoice item attribution are already live. Membership/package incentive rules can now be layered through the same scoped invoice attribution model in the next phase without changing customer history structure.</p>
-          <div className="badge-row">
-            <span className="badge">Commission Ready</span>
-            <span className="badge">Loyalty Attribution Ready</span>
-          </div>
-        </div>
-      </div>
-
       {(customerMembershipMode || customerPackageMode) && (
         <div className="settings-section-grid" style={{ marginTop: 18 }}>
           {customerMembershipMode && (
@@ -825,6 +1123,7 @@ export default function MembershipsPage() {
           {status.success && <p className="success-text">{status.success}</p>}
         </div>
       )}
+    </div>
     </div>
   );
 }

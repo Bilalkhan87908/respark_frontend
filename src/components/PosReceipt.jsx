@@ -1,4 +1,5 @@
 import { Download, Printer, QrCode, X } from "lucide-react";
+import { formatCurrency } from "../utils/currency";
 
 const Text = ({ children, style }) => <span style={style}>{children}</span>;
 const Divider = ({ dashed = false, style = {} }) => (
@@ -67,7 +68,7 @@ const S = {
     scrollbarWidth: "none",
     background: "#fff",
     borderRadius: "12px 12px 0 0",
-    boxShadow: "0 32px 80px rgba(0,0,0,0.35)",
+    boxShadow: "none",
     fontFamily: "'Courier New', Courier, monospace",
     paddingBottom: 40,
   },
@@ -268,7 +269,7 @@ const FakeBarcode = () => {
 /* ════════════════════════════════════════
    MAIN COMPONENT
 ════════════════════════════════════════ */
-export default function PosReceipt({ invoice, salonName, salonAddress, salonPhone, onClose, onPrint, onDownload }) {
+export default function PosReceipt({ invoice, salonName, salonAddress, salonPhone, currencyCode = "INR", onClose, onPrint, onDownload }) {
   /* ── data wiring ── */
   const safeInv = invoice || {};
   const items = safeInv.items || [];
@@ -290,6 +291,7 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
   const grandTotal = Number(safeInv.total || subtotal);
   const paid = Number(safeInv.paidAmount || 0);
   const balance = Number(safeInv.balanceAmount || Math.max(0, grandTotal - paid));
+  const money = (value) => formatCurrency(value || 0, currencyCode, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div style={S.overlay} onClick={onClose}>
@@ -377,7 +379,7 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
                   <div>
                     <div style={S.itemName}>{item.serviceName || item.productName || item.name || "Item"}</div>
                     <div style={S.itemSub}>
-                      {qty} × {fmt(rate)}
+                      {qty} x {money(rate)}
                     </div>
                     {item.staffName && (
                       <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "sans-serif", marginTop: 1 }}>
@@ -385,7 +387,7 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
                       </div>
                     )}
                   </div>
-                  <div style={S.itemAmt}>{fmt(amt)}</div>
+                  <div style={S.itemAmt}>{money(amt)}</div>
                 </div>
               );
             })}
@@ -397,37 +399,37 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
           <div>
             <div style={S.totalsRow}>
               <Text style={{ color: "#64748b", fontSize: 13, fontFamily: "sans-serif" }}>Subtotal</Text>
-              <Text style={{ fontFamily: "monospace", fontSize: 13 }}>{fmt(subtotal)}</Text>
+              <Text style={{ fontFamily: "monospace", fontSize: 13 }}>{money(subtotal)}</Text>
             </div>
             {discount > 0 && (
               <div style={S.totalsRow}>
                 <Text style={{ color: "#22c55e", fontSize: 12, fontFamily: "sans-serif" }}>Discount</Text>
-                <Text style={{ color: "#22c55e", fontFamily: "monospace", fontSize: 12 }}>- {fmt(discount)}</Text>
+                <Text style={{ color: "#22c55e", fontFamily: "monospace", fontSize: 12 }}>- {money(discount)}</Text>
               </div>
             )}
             {tax > 0 && (
               <div style={S.totalsRow}>
                 <Text style={{ color: "#f59e0b", fontSize: 12, fontFamily: "sans-serif" }}>Tax</Text>
-                <Text style={{ color: "#f59e0b", fontFamily: "monospace", fontSize: 12 }}>+ {fmt(tax)}</Text>
+                <Text style={{ color: "#f59e0b", fontFamily: "monospace", fontSize: 12 }}>+ {money(tax)}</Text>
               </div>
             )}
 
             {/* GRAND TOTAL */}
             <div style={S.grandRow}>
               <span style={S.grandLabel}>Grand Total</span>
-              <span style={S.grandAmt}>Rs {fmt(grandTotal)}</span>
+              <span style={S.grandAmt}>{money(grandTotal)}</span>
             </div>
 
             {paid > 0 && (
               <div style={{ ...S.totalsRow, marginTop: 6 }}>
                 <Text style={{ color: "#22c55e", fontSize: 12, fontFamily: "sans-serif" }}>Paid</Text>
-                <Text style={{ color: "#22c55e", fontFamily: "monospace", fontSize: 12 }}>Rs {fmt(paid)}</Text>
+                <Text style={{ color: "#22c55e", fontFamily: "monospace", fontSize: 12 }}>{money(paid)}</Text>
               </div>
             )}
             {balance > 0 && (
               <div style={S.totalsRow}>
                 <Text style={{ color: "#ef4444", fontSize: 12, fontFamily: "sans-serif" }}>Balance Due</Text>
-                <Text style={{ color: "#ef4444", fontFamily: "monospace", fontSize: 12 }}>Rs {fmt(balance)}</Text>
+                <Text style={{ color: "#ef4444", fontFamily: "monospace", fontSize: 12 }}>{money(balance)}</Text>
               </div>
             )}
 
@@ -440,7 +442,7 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
                       {p.mode} payment
                     </Text>
                     <Text style={{ fontFamily: "monospace", fontSize: 11, color: "#64748b" }}>
-                      {fmt(p.amount)}
+                      {money(p.amount)}
                     </Text>
                   </div>
                 ))}

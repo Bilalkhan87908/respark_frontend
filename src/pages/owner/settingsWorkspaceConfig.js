@@ -4,7 +4,7 @@ export const SETTINGS_WORKSPACE_SECTIONS = [
   { key: "roster-management", label: "Roster Management", to: "/admin/settings/roster-management", hint: "Team roster" },
   { key: "tax-mapping", label: "Tax Mapping", to: "/admin/settings/tax-mapping", hint: "Rates and labels" },
   { key: "feedback-setting", label: "Feedback Setting", to: "/admin/settings/feedback-setting", hint: "Review flow" },
-  { key: "access-control", label: "Access Control", to: "/admin/settings/access-control", hint: "Roles and access" },
+  { key: "access-control", label: "Access Control", to: "/admin/roles-permissions", hint: "Roles and access" },
   { key: "loyalty", label: "Loyalty", to: "/admin/settings/loyalty", hint: "Points defaults" },
   { key: "membership", label: "Membership", to: "/admin/settings/membership", hint: "Plan rules" },
   { key: "packages", label: "Packages", to: "/admin/settings/packages", hint: "Package rules" },

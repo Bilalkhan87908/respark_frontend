@@ -3,6 +3,7 @@ import { api } from "../../api/client";
 import IndianPhoneInput from "../../components/IndianPhoneInput";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
+import PasswordStrengthMeter from "../../components/PasswordStrengthMeter";
 import { formatApiError } from "../../utils/apiError";
 
 const emptyForm = {
@@ -185,7 +186,12 @@ export default function ExpertsPage() {
           <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
             {!editingId && <input value={form.name} placeholder="Full name" onChange={(event) => setForm({ ...form, name: event.target.value })} />}
             {!editingId && <input value={form.email} placeholder="Email" onChange={(event) => setForm({ ...form, email: event.target.value })} />}
-            {!editingId && <input type="password" value={form.password} placeholder="Password" onChange={(event) => setForm({ ...form, password: event.target.value })} />}
+            {!editingId && (
+              <div style={{ display: "grid", gap: 10 }}>
+                <input type="password" value={form.password} placeholder="Password" onChange={(event) => setForm({ ...form, password: event.target.value })} />
+                <PasswordStrengthMeter password={form.password} />
+              </div>
+            )}
             <div className="settings-section-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
               <select value={form.salonRole} onChange={(event) => setForm({ ...form, salonRole: event.target.value })}>
                 <option value="STAFF">Expert / Staff</option>

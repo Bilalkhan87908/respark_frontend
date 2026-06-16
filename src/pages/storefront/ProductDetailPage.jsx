@@ -1,10 +1,20 @@
 import { useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router-dom";
+import { formatCurrency, normalizeCurrencyCode } from "../../utils/currency";
 
 export default function ProductDetailPage() {
-  const { salon, addToCart } = useOutletContext();
+  const { salon, genericSettings, addToCart } = useOutletContext();
   const { id } = useParams();
   const [qty, setQty] = useState(1);
+  const currencyCode = normalizeCurrencyCode(
+    genericSettings?.defaultCurrency ||
+    genericSettings?.currency ||
+    salon?.defaultCurrency ||
+    salon?.currency ||
+    "INR"
+  );
+  const money = (value) => formatCurrency(value, currencyCode);
+  const showThumbnails = genericSettings.showProductThumbnails !== false;
 
   const product = { 
     id, 
@@ -21,7 +31,7 @@ export default function ProductDetailPage() {
       
       <div className="sf-product-detail-layout">
         <div className="sf-product-image-container">
-          <img src={`https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=1200&auto=format&fit=crop&sig=${id}`} alt="Product" />
+          {showThumbnails ? <img src={`https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=1200&auto=format&fit=crop&sig=${id}`} alt="Product" /> : <div className="sf-placeholder-img">Preview hidden</div>}
         </div>
 
         <div className="sf-product-meta">
@@ -32,7 +42,7 @@ export default function ProductDetailPage() {
           </div>
 
           <h1 className="sf-product-headline">{product.name}</h1>
-          <p className="sf-product-price-large">{salon.currency} {product.price.toFixed(2)}</p>
+          <p className="sf-product-price-large">{money(product.price)}</p>
           
           <div className="sf-product-divider"></div>
 

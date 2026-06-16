@@ -4,7 +4,8 @@ import {
   ResponsiveContainer, Legend, LineChart, Line, Area, AreaChart
 } from "recharts";
 import { api } from "../../api/client";
-import { IndianRupee, Scissors, Package, Droplet, TrendingUp, FileText, Users, Star } from "lucide-react";
+import { useSalonSettings } from "../../context/SalonSettingsContext";
+import { IndianRupee, Scissors, Package, Droplet, TrendingUp, FileText, Users, Star, BarChart2, Trophy, Loader2 } from "lucide-react";
 
 /* ── constants ─────────────────────────────────── */
 const TIME_RANGES = ["1D", "7D", "14D", "1M", "2M", "YTD", "1Y"];
@@ -27,15 +28,9 @@ const FILTERS = [
 ];
 
 /* ── helpers ───────────────────────────────────── */
-const fmt = (v) => `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-const fmtShort = (v) => {
-  if (v >= 1e6) return `₹${(v / 1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `₹${(v / 1e3).toFixed(0)}K`;
-  return `₹${v}`;
-};
 
 /* ── CustomTooltip ─────────────────────────────── */
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, moneyFormatter }) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 12, padding: "12px 16px", minWidth: 190 }}>
@@ -46,7 +41,7 @@ const CustomTooltip = ({ active, payload, label }) => {
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color, display: "inline-block" }} />
             {p.name}
           </span>
-          <strong style={{ color: "white", fontSize: 12, fontFamily: "monospace" }}>{fmt(p.value)}</strong>
+          <strong style={{ color: "white", fontSize: 12, fontFamily: "monospace" }}>{moneyFormatter(p.value)}</strong>
         </div>
       ))}
     </div>
@@ -54,11 +49,11 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 /* ── StatCard ───────────────────────────────────── */
-function StatCard({ label, value, color, icon: Icon, sub, trend }) {
+function StatCard({ label, value, color, icon: Icon, sub, trend, moneyFormatter }) {
   return (
     <div style={{
       background: "white", borderRadius: 16, padding: "20px 24px",
-      border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+      border: "1px solid #e2e8f0", boxShadow: "none",
       display: "flex", alignItems: "flex-start", gap: 16, position: "relative", overflow: "hidden"
     }}>
       {/* colored accent bar */}
@@ -68,7 +63,7 @@ function StatCard({ label, value, color, icon: Icon, sub, trend }) {
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>{fmt(value)}</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", fontFamily: "monospace" }}>{moneyFormatter(value)}</div>
         {sub != null && <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{sub}</div>}
       </div>
     </div>
@@ -76,7 +71,7 @@ function StatCard({ label, value, color, icon: Icon, sub, trend }) {
 }
 
 /* ── ProgressBar ────────────────────────────────── */
-function ProgressBar({ label, value, max, color }) {
+function ProgressBar({ label, value, max, color, moneyFormatter }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div style={{ marginBottom: 14 }}>
@@ -84,7 +79,7 @@ function ProgressBar({ label, value, max, color }) {
         <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{label}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 11, color: "#94a3b8" }}>{pct}%</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>{fmt(value)}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>{moneyFormatter(value)}</span>
         </div>
       </div>
       <div style={{ height: 7, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
@@ -95,7 +90,7 @@ function ProgressBar({ label, value, max, color }) {
 }
 
 /* ── RankRow ─────────────────────────────────────── */
-function RankRow({ rank, name, revenue }) {
+function RankRow({ rank, name, revenue, moneyFormatter }) {
   const colors = ["#f59e0b", "#94a3b8", "#cd7c2f"];
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid #f8fafc" }}>
@@ -106,10 +101,14 @@ function RankRow({ rank, name, revenue }) {
         fontWeight: 800, fontSize: 12,
         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}>
-        {rank <= 3 ? ["🥇", "🥈", "🥉"][rank - 1] : rank}
+        {rank <= 3 ? (
+          <span style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Trophy size={13} color={colors[rank - 1]} />
+          </span>
+        ) : rank}
       </div>
       <span style={{ flex: 1, fontSize: 13, color: "#334155", fontWeight: 500 }}>{name}</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>{fmt(revenue)}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "monospace" }}>{moneyFormatter(revenue)}</span>
     </div>
   );
 }
@@ -118,11 +117,19 @@ function RankRow({ rank, name, revenue }) {
    MAIN PAGE
 ══════════════════════════════════════════════════ */
 export default function TrendsPage() {
+  const { formatMoney, currencyMeta } = useSalonSettings();
   const [timeRange,     setTimeRange]     = useState("7D");
   const [linePeriod,    setLinePeriod]    = useState("week");
   const [activeFilter,  setActiveFilter]  = useState("overall");
   const [loading,       setLoading]       = useState(true);
   const [data,          setData]          = useState(null);
+  const fmtShortCurrency = (v) => {
+    const amount = Number(v || 0);
+    const symbol = currencyMeta?.symbol || "";
+    if (amount >= 1e6) return `${symbol}${(amount / 1e6).toFixed(1)}M`;
+    if (amount >= 1e3) return `${symbol}${(amount / 1e3).toFixed(0)}K`;
+    return `${symbol}${amount}`;
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -172,34 +179,36 @@ export default function TrendsPage() {
         .trend-pill-btn.active {
           background: linear-gradient(135deg, #6366f1, #4f46e5);
           border-color: #6366f1; color: white;
-          box-shadow: 0 4px 14px rgba(99,102,241,0.3);
+          box-shadow: none;
         }
         .trend-pill-btn:hover:not(.active) { background: #f8fafc; border-color: #cbd5e1; }
         .range-chip {
           padding: 5px 12px; border-radius: 8px; border: none; font-size: 12px;
           font-weight: 600; cursor: pointer; transition: all 0.15s; background: #f1f5f9; color: #64748b;
         }
-        .range-chip.active { background: #6366f1; color: white; box-shadow: 0 2px 8px rgba(99,102,241,0.3); }
+        .range-chip.active { background: #6366f1; color: white; box-shadow: none; }
         .chart-card {
           background: white; border-radius: 20px; padding: 24px;
-          border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+          border: 1px solid #e2e8f0; box-shadow: none;
         }
         .chart-card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 2px; }
         .chart-card-sub { font-size: 12px; color: #94a3b8; margin: 0 0 20px; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
 
       {/* ── HEADER ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", margin: "0 0 6px", letterSpacing: -0.5 }}>
-            📊 Trends & Analytics
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", margin: "0 0 6px", letterSpacing: -0.5, display: "flex", alignItems: "center", gap: 10 }}>
+            <BarChart2 size={24} color="#6366f1" />
+            Trends & Analytics
           </h1>
           <p style={{ color: "#64748b", margin: 0, fontSize: 14 }}>
             Revenue performance, service trends, and business insights at a glance.
           </p>
         </div>
         {/* time range pills */}
-        <div style={{ display: "flex", gap: 6, background: "white", padding: "6px 10px", borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+        <div style={{ display: "flex", gap: 6, background: "white", padding: "6px 10px", borderRadius: 12, border: "1px solid #e2e8f0", boxShadow: "none" }}>
           {TIME_RANGES.map((r) => (
             <button key={r} className={`range-chip ${timeRange === r ? "active" : ""}`} onClick={() => setTimeRange(r)}>
               {r}
@@ -220,10 +229,10 @@ export default function TrendsPage() {
 
       {/* ── STAT CARDS ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 28 }}>
-        <StatCard label="Total Revenue"  value={totalRevenue} color="#6366f1" icon={IndianRupee} sub={`${summary.totalInvoices || 0} invoices`} />
-        <StatCard label="Services"       value={serviceRev}   color="#3b82f6" icon={Scissors}    sub={`${totalRevenue ? Math.round(serviceRev / totalRevenue * 100) : 0}% of total`} />
-        <StatCard label="Products"       value={productRev}   color="#10b981" icon={Droplet}     sub={`${totalRevenue ? Math.round(productRev / totalRevenue * 100) : 0}% of total`} />
-        <StatCard label="Avg Bill Value" value={summary.avgBillValue || 0} color="#f59e0b" icon={Star} sub="per invoice" />
+        <StatCard label="Total Revenue"  value={totalRevenue} color="#6366f1" icon={IndianRupee} sub={`${summary.totalInvoices || 0} invoices`} moneyFormatter={formatMoney} />
+        <StatCard label="Services"       value={serviceRev}   color="#3b82f6" icon={Scissors}    sub={`${totalRevenue ? Math.round(serviceRev / totalRevenue * 100) : 0}% of total`} moneyFormatter={formatMoney} />
+        <StatCard label="Products"       value={productRev}   color="#10b981" icon={Droplet}     sub={`${totalRevenue ? Math.round(productRev / totalRevenue * 100) : 0}% of total`} moneyFormatter={formatMoney} />
+        <StatCard label="Avg Bill Value" value={summary.avgBillValue || 0} color="#f59e0b" icon={Star} sub="per invoice" moneyFormatter={formatMoney} />
       </div>
 
       {/* ── CHARTS ROW ── */}
@@ -235,7 +244,7 @@ export default function TrendsPage() {
           {loading ? (
             <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ textAlign: "center", color: "#94a3b8" }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>Loading...
+                <div style={{ fontSize: 24, marginBottom: 8 }}><Loader2 size={24} style={{ animation: "spin 1s linear infinite" }} /></div>Loading...
               </div>
             </div>
           ) : (
@@ -243,8 +252,8 @@ export default function TrendsPage() {
               <BarChart data={revenueBar} margin={{ top: 4, right: 8, left: -12, bottom: 44 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} angle={-30} textAnchor="end" interval={0} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtShort} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(99,102,241,0.05)" }} />
+                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtShortCurrency} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip moneyFormatter={formatMoney} />} cursor={{ fill: "rgba(99,102,241,0.05)" }} />
                 <Bar dataKey="value" name="Revenue" radius={[8, 8, 0, 0]} maxBarSize={48}>
                   {revenueBar.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                 </Bar>
@@ -269,7 +278,7 @@ export default function TrendsPage() {
             </div>
           </div>
           {loading ? (
-            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>⏳ Loading...</div>
+            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}><Loader2 size={20} style={{ animation: "spin 1s linear infinite", marginRight: 8 }} /> Loading...</div>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={trendLine} margin={{ top: 4, right: 16, left: -12, bottom: 0 }}>
@@ -285,8 +294,8 @@ export default function TrendsPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => v.slice(5)} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtShort} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
+                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtShortCurrency} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip moneyFormatter={formatMoney} />} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                 <Area type="monotone" dataKey="total"   stroke={PALETTE.total}   strokeWidth={2.5} fill="url(#gradTotal)"   dot={false} name="Total" />
                 <Area type="monotone" dataKey="service" stroke={PALETTE.service} strokeWidth={2}   fill="url(#gradService)" dot={false} name="Service" />
@@ -312,13 +321,13 @@ export default function TrendsPage() {
             { label: "Memberships", value: revenueBar.find((r) => r.name === "Membership")?.value || 0, color: PALETTE.membership },
             { label: "Gift Cards",  value: revenueBar.find((r) => r.name === "Gift Card")?.value  || 0, color: PALETTE.giftCard },
           ].map((item) => (
-            <ProgressBar key={item.label} {...item} max={totalRevenue} />
+            <ProgressBar key={item.label} {...item} max={totalRevenue} moneyFormatter={formatMoney} />
           ))}
         </div>
 
         {/* Top Services */}
         <div className="chart-card">
-          <p className="chart-card-title">🏆 Top Services</p>
+          <p className="chart-card-title" style={{ display: "flex", alignItems: "center", gap: 7 }}><Trophy size={15} color="#f59e0b" /> Top Services</p>
           <p className="chart-card-sub">By revenue earned</p>
           {topServices.length === 0 ? (
             <div style={{ textAlign: "center", color: "#cbd5e1", paddingTop: 32 }}>
@@ -326,13 +335,13 @@ export default function TrendsPage() {
               <div style={{ fontSize: 13 }}>No service data yet</div>
             </div>
           ) : topServices.map((s, i) => (
-            <RankRow key={s.name} rank={i + 1} name={s.name} revenue={s.revenue} />
+            <RankRow key={s.name} rank={i + 1} name={s.name} revenue={s.revenue} moneyFormatter={formatMoney} />
           ))}
         </div>
 
         {/* Top Staff */}
         <div className="chart-card">
-          <p className="chart-card-title">⭐ Top Stylists</p>
+          <p className="chart-card-title" style={{ display: "flex", alignItems: "center", gap: 7 }}><Star size={15} color="#f59e0b" /> Top Stylists</p>
           <p className="chart-card-sub">By revenue generated</p>
           {topStaff.length === 0 ? (
             <div style={{ textAlign: "center", color: "#cbd5e1", paddingTop: 32 }}>
@@ -340,7 +349,7 @@ export default function TrendsPage() {
               <div style={{ fontSize: 13 }}>No staff revenue data yet</div>
             </div>
           ) : topStaff.map((s, i) => (
-            <RankRow key={s.name} rank={i + 1} name={s.name} revenue={s.revenue} />
+            <RankRow key={s.name} rank={i + 1} name={s.name} revenue={s.revenue} moneyFormatter={formatMoney} />
           ))}
         </div>
       </div>

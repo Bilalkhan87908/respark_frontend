@@ -63,7 +63,7 @@ const emptyForm = {
   city: "",
   country: "",
   timezone: "",
-  currency: "PKR",
+  currency: "INR",
   taxRate: 0,
   trialStartsAt: "",
   trialEndsAt: "",
@@ -178,7 +178,7 @@ export default function SalonsPage() {
       city: salon.city || "",
       country: salon.country || "",
       timezone: salon.timezone || "",
-      currency: salon.currency || "PKR",
+      currency: salon.currency || "INR",
       taxRate: Number(salon.taxRate || 0),
       trialStartsAt: salon.trialStartsAt ? new Date(salon.trialStartsAt).toISOString().slice(0, 10) : "",
       trialEndsAt: salon.trialEndsAt ? new Date(salon.trialEndsAt).toISOString().slice(0, 10) : "",
@@ -357,7 +357,7 @@ export default function SalonsPage() {
                 <p>{selectedSalon.email || "-"} | {selectedSalon.phone || "-"}</p>
                 <p>{selectedSalon.address || "-"}</p>
                 <p>{selectedSalon.city || "-"}, {selectedSalon.country || "-"} | {selectedSalon.timezone || "-"}</p>
-                <p>Currency {selectedSalon.currency || "PKR"} | Tax {String(selectedSalon.taxRate || 0)}%</p>
+                <p>Currency {selectedSalon.currency || "INR"} | Tax {String(selectedSalon.taxRate || 0)}%</p>
                 <p>Trial: {selectedSalon.trialStartsAt ? new Date(selectedSalon.trialStartsAt).toLocaleDateString() : "-"} to {selectedSalon.trialEndsAt ? new Date(selectedSalon.trialEndsAt).toLocaleDateString() : "-"}</p>
                 <p>Internal note: {selectedSalon.internalNote || "-"}</p>
               </div>

@@ -18,8 +18,11 @@ export const MODULE_GROUPS = [
       { key: "appointments", label: "Appointments" },
       { key: "customers", label: "Customers / CRM" },
       { key: "pos", label: "POS Billing" },
+      { key: "orders", label: "POS Dashboard" },
       { key: "invoices", label: "Invoices" },
-      { key: "payments", label: "Payments" }
+      { key: "payments", label: "Payments" },
+      { key: "feedback", label: "Feedback" },
+      { key: "enquiries", label: "Enquiries" }
     ]
   },
   {
@@ -30,7 +33,10 @@ export const MODULE_GROUPS = [
       { key: "services", label: "Services" },
       { key: "staff", label: "Staff / Users" },
       { key: "staffSchedule", label: "Staff Schedule" },
-      { key: "payroll", label: "Payroll" }
+      { key: "attendance", label: "Attendance" },
+      { key: "leaves", label: "Leaves" },
+      { key: "payroll", label: "Payroll" },
+      { key: "incentives", label: "Incentives" }
     ]
   },
   {
@@ -41,9 +47,35 @@ export const MODULE_GROUPS = [
       { key: "purchases", label: "Purchases / Vendors" },
       { key: "memberships", label: "Memberships" },
       { key: "packages", label: "Packages" },
+      { key: "loyalty", label: "Loyalty" },
+      { key: "couponsGiftCards", label: "Coupons & Gift Cards" },
+      { key: "expenses", label: "Expenses" },
       { key: "reports", label: "Reports" },
+      { key: "advancedReports", label: "Advanced Reports" },
       { key: "support", label: "Support" },
       { key: "settings", label: "Settings" }
+    ]
+  },
+  {
+    title: "Marketing & Communication",
+    hint: "Campaigns, templates, and outreach",
+    modules: [
+      { key: "campaigns", label: "Campaigns" },
+      { key: "campaignTemplates", label: "Campaign Templates" },
+      { key: "messageTemplates", label: "Message Templates" },
+      { key: "whatsapp", label: "WhatsApp" },
+      { key: "notifications", label: "Notifications" }
+    ]
+  },
+  {
+    title: "Platform",
+    hint: "Storefront and system configuration",
+    modules: [
+      { key: "catalog", label: "Website Catalogue" },
+      { key: "catalogAnalytics", label: "Catalogue Analytics" },
+      { key: "ecommerce", label: "Online Orders" },
+      { key: "customerPortalSettings", label: "Staff Portal Settings" },
+      { key: "auditLogs", label: "Audit Logs" }
     ]
   },
   {
@@ -54,7 +86,10 @@ export const MODULE_GROUPS = [
       { key: "myAppointments", label: "My Appointments" },
       { key: "mySchedule", label: "My Schedule" },
       { key: "myCommission", label: "My Commission" },
+      { key: "myAttendance", label: "My Attendance" },
+      { key: "myLeaves", label: "My Leaves" },
       { key: "myPayroll", label: "My Payroll" },
+      { key: "myPerformance", label: "My Performance" },
       { key: "myProfile", label: "My Profile" }
     ]
   }
@@ -79,25 +114,38 @@ export const ROLE_PRESETS = {
     appointments: ["view", "create", "edit"],
     customers: ["view", "create", "edit"],
     pos: ["view", "create", "edit"],
+    orders: ["view", "edit"],
     invoices: ["view", "create", "edit"],
     payments: ["view", "create"],
     branches: ["view"],
     services: ["view", "edit"],
     staff: ["view"],
     staffSchedule: ["view", "edit"],
+    attendance: ["view", "create", "edit"],
+    leaves: ["view", "edit", "approve"],
     inventory: ["view", "edit"],
     purchases: ["view", "create"],
     memberships: ["view", "create", "edit"],
     packages: ["view", "create", "edit"],
+    loyalty: ["view", "create", "edit"],
+    couponsGiftCards: ["view", "create", "edit"],
+    feedback: ["view", "edit"],
+    enquiries: ["view", "create", "edit"],
+    expenses: ["view", "create", "edit", "approve"],
     reports: ["view"],
     support: ["view", "create"],
     payroll: ["view", "create", "edit", "approve", "pay"],
+    notifications: ["view"],
+    whatsapp: ["view"],
     settings: ["view"],
     myDashboard: ["view"],
     myAppointments: ["view"],
     mySchedule: ["view"],
     myCommission: ["view"],
+    myAttendance: ["view", "create", "edit"],
+    myLeaves: ["view", "create"],
     myPayroll: ["view"],
+    myPerformance: ["view"],
     myProfile: ["view", "edit"]
   }),
   RECEPTIONIST: makePermissions({
@@ -105,10 +153,16 @@ export const ROLE_PRESETS = {
     appointments: ["view", "create", "edit"],
     customers: ["view", "create", "edit"],
     pos: ["view", "create"],
+    orders: ["view"],
     invoices: ["view", "create"],
     payments: ["view", "create"],
     memberships: ["view"],
     packages: ["view"],
+    loyalty: ["view"],
+    couponsGiftCards: ["view"],
+    feedback: ["view"],
+    enquiries: ["view", "create", "edit"],
+    notifications: ["view"],
     support: ["view", "create"],
     myDashboard: ["view"],
     myAppointments: ["view"],
@@ -118,11 +172,15 @@ export const ROLE_PRESETS = {
   STAFF: makePermissions({
     appointments: ["view", "edit"],
     customers: ["view"],
+    feedback: ["view"],
     myDashboard: ["view"],
     myAppointments: ["view"],
     mySchedule: ["view"],
     myCommission: ["view"],
+    myAttendance: ["view", "create"],
+    myLeaves: ["view", "create"],
     myPayroll: ["view"],
+    myPerformance: ["view"],
     myProfile: ["view", "edit"]
   }),
   INVENTORY_MANAGER: makePermissions({
@@ -130,14 +188,19 @@ export const ROLE_PRESETS = {
     inventory: ["view", "create", "edit", "delete"],
     purchases: ["view", "create", "edit"],
     reports: ["view"],
+    expenses: ["view"],
     myDashboard: ["view"],
     myProfile: ["view", "edit"]
   }),
   ACCOUNTANT: makePermissions({
     dashboard: ["view"],
+    orders: ["view"],
     invoices: ["view", "edit"],
     payments: ["view", "create", "edit"],
+    expenses: ["view", "create", "edit", "approve"],
+    payroll: ["view", "create", "edit", "approve", "pay"],
     reports: ["view"],
+    notifications: ["view"],
     support: ["view", "create"],
     myDashboard: ["view"],
     myProfile: ["view", "edit"]

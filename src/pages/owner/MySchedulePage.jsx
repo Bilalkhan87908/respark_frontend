@@ -3,11 +3,15 @@ import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import { useAuth } from "../../context/AuthContext";
+import { getMyWorkspaceTabs } from "../../utils/myWorkspaceTabs";
 import { CalendarClock, Clock, Coffee, CalendarOff } from "lucide-react";
 
 export default function MySchedulePage() {
+  const { auth } = useAuth();
   const [data, setData] = useState({ schedules: [], breaks: [] });
   const [loading, setLoading] = useState(true);
+  const myTabs = getMyWorkspaceTabs(auth?.membership?.permissions || {});
 
   useEffect(() => {
     api.get("/owner/my-schedule").then((response) => {
@@ -28,8 +32,8 @@ export default function MySchedulePage() {
         .anim-stagger-1 { animation: slideInRight 0.5s ease-out 0.1s both; }
         .anim-stagger-2 { animation: slideInRight 0.5s ease-out 0.2s both; }
         
-        .s-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-        .s-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .s-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .s-card:hover { transform: translateY(-4px); box-shadow: none; border-color: #cbd5e1; }
         
         .day-row { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
         .day-row:last-child { border-bottom: none; }
@@ -38,14 +42,7 @@ export default function MySchedulePage() {
 
       <ModuleTabs
         title="My Schedule"
-        items={[
-          { label: "My Dashboard", to: "/admin/my-dashboard" },
-          { label: "My Appointments", to: "/admin/my-appointments" },
-          { label: "My Schedule", to: "/admin/my-schedule" },
-          { label: "My Commission", to: "/admin/my-commission" },
-          { label: "My Payroll", to: "/admin/my-payroll" },
-          { label: "My Profile", to: "/admin/my-profile" }
-        ]}
+        items={myTabs}
       />
 
       <div style={{ background: "linear-gradient(135deg, #0f172a, #1e293b)", borderRadius: 24, padding: "40px 32px", color: "white", marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

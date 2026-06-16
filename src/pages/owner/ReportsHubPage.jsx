@@ -133,75 +133,31 @@ function EmptyRows({ cols }) {
 function ReportTable({ reportKey, rows, loading }) {
   const cols = COLUMNS[reportKey] || ["Data"];
   return (
-    <div className="crm-table-container">
-      <style>{`
-        .crm-table-container {
-          background: white;
-          border-radius: 8px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          overflow-x: auto;
-        }
-        .crm-table {
-          width: 100%;
-          border-collapse: collapse;
-          white-space: nowrap;
-        }
-        .crm-table th {
-          background: #f8fafc;
-          color: #475569;
-          font-size: 0.65rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          padding: 10px 8px;
-          text-align: left;
-          border-bottom: 2px solid #e2e8f0;
-        }
-        .crm-table td {
-          padding: 8px;
-          font-size: 0.75rem;
-          color: #334155;
-          border-bottom: 1px solid #f1f5f9;
-          vertical-align: middle;
-        }
-        .crm-table tr:hover {
-          background: #f8fafc;
-        }
-      `}</style>
-      <table className="crm-table">
-        <thead>
-          <tr>
-            {cols.map((col) => (
-              <th key={col}>{col}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i}>
-                {cols.map((_, ci) => (
-                  <td key={ci}>
-                    <div style={{ height: 12, background: "#f1f5f9", borderRadius: 4, width: `${60 + Math.random() * 40}%` }} />
-                  </td>
-                ))}
-              </tr>
-            ))
-          ) : rows?.length ? rows.map((row, ri) => (
-            <tr key={ri}>
-              {cols.map((col, ci) => {
-                let val = col === "SR. NO." ? (ri + 1) : getCellValue(row, col);
-                return (
-                  <td key={ci}>
-                    {val ?? "—"}
-                  </td>
-                );
-              })}
+    <table className="rpt-table">
+      <thead>
+        <tr>
+          {cols.map((col) => <th key={col}>{col}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <tr key={i} className="rpt-loading">
+              {cols.map((_, ci) => <td key={ci}>&nbsp;</td>)}
             </tr>
-          )) : <EmptyRows cols={cols.length} />}
-        </tbody>
-      </table>
-    </div>
+          ))
+        ) : rows?.length ? rows.map((row, ri) => (
+          <tr key={ri}>
+            {cols.map((col, ci) => {
+              const val = col === "SR. NO." ? (ri + 1) : getCellValue(row, col);
+              return <td key={ci}>{val ?? "—"}</td>;
+            })}
+          </tr>
+        )) : (
+          <tr><td colSpan={cols.length} className="rpt-empty">No records found for the selected filters.</td></tr>
+        )}
+      </tbody>
+    </table>
   );
 }
 
@@ -257,99 +213,109 @@ export default function ReportsHubPage() {
   };
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 56px)", overflow: "hidden", background: "#334155" }}>
+    <div style={{ display: "flex", height: "calc(100vh - 108px)", overflow: "hidden", background: "#f8fafc" }}>
       <style>
         {`
           @media print {
             body * { visibility: hidden; }
             #printable-report, #printable-report * { visibility: visible; }
-            #printable-report { position: absolute; left: 0; top: 0; width: 100%; padding: 0 !important; margin: 0 !important; }
-            #report-filters { display: none !important; }
-            .no-print { display: none !important; }
+            #printable-report { position: absolute; left: 0; top: 0; width: 100%; }
+            #report-filters, .no-print { display: none !important; }
           }
+          .rpt-sidebar { width: 170px; min-width: 170px; background: #fff; border-right: 1px solid #e2e8f0; overflow-y: auto; display: flex; flex-direction: column; }
+          .rpt-search-box { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+          .rpt-search-input { width: 100%; padding: 6px 10px 6px 28px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.75rem; outline: none; background: #f8fafc; box-sizing: border-box; min-height: unset; }
+          .rpt-search-input:focus { border-color: #3b82f6; background: #fff; }
+          .rpt-search-wrap { position: relative; }
+          .rpt-search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+          .rpt-nav-item { width: 100%; text-align: left; padding: 9px 12px; border: none; background: none; font-size: 0.78rem; color: #475569; cursor: pointer; border-left: 3px solid transparent; min-height: unset; box-shadow: none; font-weight: 500; transition: background 140ms, color 140ms; }
+          .rpt-nav-item:hover { background: #f8fafc; color: #0f172a; transform: none; filter: none; }
+          .rpt-nav-item.active { background: #f0f9ff; color: #0284c7; border-left-color: #0284c7; font-weight: 700; }
+          .rpt-main { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: #f8fafc; }
+          .rpt-topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 8px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+          .rpt-title { font-size: 0.82rem; font-weight: 700; color: #0f172a; margin: 0; white-space: nowrap; min-width: 90px; }
+          .rpt-filter-label { font-size: 0.68rem; color: #94a3b8; font-weight: 600; white-space: nowrap; }
+          .rpt-date-input { border: 1px solid #e2e8f0; border-radius: 5px; padding: 4px 7px; font-size: 0.72rem; color: #334155; min-height: unset; width: 120px; }
+          .rpt-btn { border: none; border-radius: 5px; padding: 5px 10px; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; min-height: unset; box-shadow: none; white-space: nowrap; }
+          .rpt-btn:hover { opacity: 0.85; transform: none; filter: none; }
+          .rpt-btn-dark { background: #1e293b; color: #fff; }
+          .rpt-btn-blue { background: #2563eb; color: #fff; }
+          .rpt-btn-clear { background: #fee2e2; color: #dc2626; }
+          .rpt-stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 10px; }
+          .rpt-stat-label { font-size: 0.58rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1px; }
+          .rpt-stat-val { font-size: 0.78rem; font-weight: 700; color: #0f172a; white-space: nowrap; }
+          .rpt-table-wrap { flex: 1; margin: 10px 12px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: auto; }
+          .rpt-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+          .rpt-table th { background: #f8fafc; color: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 2; font-size: 0.68rem; }
+          .rpt-table td { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; font-size: 0.78rem; }
+          .rpt-table tr:hover td { background: #f8fafc; }
+          .rpt-table tfoot td { background: #f8fafc; font-weight: 700; color: #0f172a; padding: 7px 12px; border-top: 2px solid #e2e8f0; }
+          .rpt-empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 0.82rem; }
+          .rpt-loading td { animation: rpt-shimmer 1.2s infinite; background: linear-gradient(90deg, #f1f5f9 25%, #e8edf3 50%, #f1f5f9 75%); background-size: 200% 100%; height: 28px; }
+          @keyframes rpt-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         `}
       </style>
+
       {/* LEFT SIDEBAR */}
-      <div className="no-print" style={{ width: 240, minWidth: 240, background: "#475569", borderRight: "1px solid #e2e8f0", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid #334155" }}>
-          <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.9rem" }}>🔍</span>
+      <div className="rpt-sidebar no-print">
+        <div className="rpt-search-box">
+          <div className="rpt-search-wrap">
+            <svg className="rpt-search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input
+              className="rpt-search-input"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search reports..."
-              style={{ width: "100%", padding: "8px 10px 8px 30px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.85rem", color: "#334155", background: "#f8fafc", outline: "none", boxSizing: "border-box" }}
             />
           </div>
         </div>
-        <div style={{ flex: 1, padding: "8px 0" }}>
+        <div style={{ flex: 1, paddingTop: 4 }}>
           {filteredReports.map((report) => (
             <button
               key={report.key}
               type="button"
+              className={`rpt-nav-item ${activeReport === report.key ? "active" : ""}`}
               onClick={() => { setActiveReport(report.key); setSearch(""); }}
-              style={{
-                width: "100%", display: "block", padding: "12px 14px 12px 20px", background: activeReport === report.key ? "white" : "none",
-                border: "none", borderLeft: activeReport === report.key ? "4px solid #1e293b" : "4px solid transparent",
-                cursor: "pointer", fontSize: "0.85rem", color: activeReport === report.key ? "#0f172a" : "#cbd5e1",
-                fontWeight: activeReport === report.key ? 700 : 500, textAlign: "left", transition: "all 0.15s"
-              }}>
+            >
               {report.label}
             </button>
           ))}
         </div>
       </div>
 
-
       {/* MAIN CONTENT */}
-      <div id="printable-report" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        {/* Top bar */}
-        <div style={{ background: "white", borderBottom: "1px solid #e2e8f0", padding: "14px 24px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>{currentReport?.label || "Report"}</h2>
-          </div>
-          <div id="report-filters" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontWeight: 600 }}>FROM</span>
-              <input type="date" value={filters.start} onChange={(e) => setFilters((f) => ({ ...f, start: e.target.value }))}
-                style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: "0.85rem", color: "#334155" }} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8", fontWeight: 600 }}>TO</span>
-              <input type="date" value={filters.end} onChange={(e) => setFilters((f) => ({ ...f, end: e.target.value }))}
-                style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: "0.85rem", color: "#334155" }} />
-            </div>
-            {(filters.start || filters.end) && (
-              <button type="button" onClick={() => setFilters((f) => ({ ...f, start: "", end: "" }))}
-                style={{ background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: "0.82rem", cursor: "pointer", fontWeight: 600 }}>✕ Clear</button>
-            )}
-            <button type="button" onClick={handleExportCSV}
-              style={{ background: "#0f172a", color: "white", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: "0.85rem", cursor: "pointer", fontWeight: 600 }}>
-              ⬇ Export CSV
-            </button>
-            <button type="button" onClick={() => window.print()}
-              style={{ background: "#1d4ed8", color: "white", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: "0.85rem", cursor: "pointer", fontWeight: 600 }}>
-              🖨 Print
-            </button>
-          </div>
-        </div>
+      <div id="printable-report" className="rpt-main">
 
-        {/* Stats row */}
-        <div style={{ padding: "16px 24px 0", display: "flex", gap: 12 }}>
-          {[
-            { label: "Total Records", value: loading ? "..." : rows.length },
-            { label: "Date Range", value: filters.start && filters.end ? `${filters.start} → ${filters.end}` : "All Time" },
-            { label: "Status", value: loading ? "Loading..." : "Loaded", color: loading ? "#f59e0b" : "#10b981" },
-          ].map((s) => (
-            <div key={s.label} style={{ background: "white", borderRadius: 12, padding: "12px 18px", border: "1px solid #e2e8f0", minWidth: 140 }}>
-              <div style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: "1rem", fontWeight: 700, color: s.color || "#0f172a" }}>{s.value}</div>
-            </div>
-          ))}
+        {/* Top bar — stats + filters all in ONE row */}
+        <div className="rpt-topbar">
+          <h2 className="rpt-title">{currentReport?.label || "Report"}</h2>
+          <div className="rpt-stat" style={{ flexShrink: 0 }}>
+            <div className="rpt-stat-label">Records</div>
+            <div className="rpt-stat-val">{loading ? "..." : rows.length}</div>
+          </div>
+          <div className="rpt-stat" style={{ flexShrink: 0 }}>
+            <div className="rpt-stat-label">Range</div>
+            <div className="rpt-stat-val">{filters.start && filters.end ? `${filters.start} → ${filters.end}` : "All Time"}</div>
+          </div>
+          <div className="rpt-stat" style={{ flexShrink: 0 }}>
+            <div className="rpt-stat-label">Status</div>
+            <div className="rpt-stat-val" style={{ color: loading ? "#f59e0b" : "#10b981" }}>{loading ? "Loading..." : "Loaded"}</div>
+          </div>
+          <div id="report-filters" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
+            <span className="rpt-filter-label">FROM</span>
+            <input type="date" className="rpt-date-input" value={filters.start} onChange={(e) => setFilters((f) => ({ ...f, start: e.target.value }))} />
+            <span className="rpt-filter-label">TO</span>
+            <input type="date" className="rpt-date-input" value={filters.end} onChange={(e) => setFilters((f) => ({ ...f, end: e.target.value }))} />
+            {(filters.start || filters.end) && (
+              <button type="button" className="rpt-btn rpt-btn-clear" onClick={() => setFilters((f) => ({ ...f, start: "", end: "" }))}>✕</button>
+            )}
+            <button type="button" className="rpt-btn rpt-btn-dark" onClick={handleExportCSV}>⬇ Export CSV</button>
+            <button type="button" className="rpt-btn rpt-btn-blue" onClick={() => window.print()}>🖨 Print</button>
+          </div>
         </div>
 
         {/* Table */}
-        <div style={{ margin: 24, background: "white", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+        <div className="rpt-table-wrap">
           <ReportTable reportKey={activeReport} rows={rows} loading={loading} />
         </div>
       </div>

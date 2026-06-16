@@ -4,6 +4,7 @@ const canAccess = (permissions, key, action = "view") =>
 const isFeatureEnabled = (featureFlags, key) => featureFlags?.[key] !== false;
 
 const LANDING_ROUTES = [
+  { path: "/admin/pos", moduleKey: "pos", featureKey: "pos" },
   { path: "/admin/dashboard", moduleKey: "dashboard" },
   { path: "/admin/my-dashboard", moduleKey: "myDashboard" },
   { path: "/admin/payroll", moduleKey: "payroll", featureKey: "payroll" },
@@ -11,21 +12,21 @@ const LANDING_ROUTES = [
   { path: "/admin/appointments", moduleKey: "appointments", featureKey: "appointments" },
   { path: "/admin/my-appointments", moduleKey: "myAppointments", featureKey: "appointments" },
   { path: "/admin/my-schedule", moduleKey: "mySchedule", featureKey: "appointments" },
-  { path: "/admin/invoices", moduleKey: "invoices" },
+  { path: "/admin/pos-dashboard", moduleKey: "orders", featureKey: "onlineOrders" },
   { path: "/admin/payments", moduleKey: "payments" },
   { path: "/admin/customers", moduleKey: "customers" },
   { path: "/admin/services", moduleKey: "services" },
   { path: "/admin/users", moduleKey: "staff" },
   { path: "/admin/inventory", moduleKey: "inventory", featureKey: "inventory" },
   { path: "/admin/branches", moduleKey: "branches" },
-  { path: "/admin/settings/generic", moduleKey: "settings" },
+  { path: "/admin/settings/generic", moduleKey: "settings", action: "edit" },
   { path: "/admin/support-tickets", moduleKey: "support" },
   { path: "/admin/my-profile", moduleKey: "myProfile" }
 ];
 
 export const getLandingPath = ({ permissions = {}, featureFlags = {} } = {}) => {
-  const match = LANDING_ROUTES.find(({ moduleKey, featureKey }) => (
-    canAccess(permissions, moduleKey) && (!featureKey || isFeatureEnabled(featureFlags, featureKey))
+  const match = LANDING_ROUTES.find(({ moduleKey, featureKey, action }) => (
+    canAccess(permissions, moduleKey, action || "view") && (!featureKey || isFeatureEnabled(featureFlags, featureKey))
   ));
 
   return match?.path || "/admin/dashboard";

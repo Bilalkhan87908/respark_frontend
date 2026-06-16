@@ -159,7 +159,7 @@ export default function WebsiteEditorPage() {
           </a>
         </div>
         
-        <div style={{ flex: 1, background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', border: '1px solid #ccc' }}>
+        <div style={{ flex: 1, background: 'white', borderRadius: '16px', overflow: 'hidden', boxShadow: "none", border: '1px solid #ccc' }}>
           <iframe 
             key={iframeKey}
             src={`/site/${slug}`} 

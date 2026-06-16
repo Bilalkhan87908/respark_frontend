@@ -3,11 +3,15 @@ import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import { useAuth } from "../../context/AuthContext";
+import { getMyWorkspaceTabs } from "../../utils/myWorkspaceTabs";
 import { Calendar, User, Scissors, Bell, Clock, Briefcase, Activity } from "lucide-react";
 
 export default function MyDashboardPage() {
+  const { auth } = useAuth();
   const [data, setData] = useState({ todayAppointments: [], recentAppointments: [], assignedServices: [], notifications: [] });
   const [loading, setLoading] = useState(true);
+  const myTabs = getMyWorkspaceTabs(auth?.membership?.permissions || {});
 
   useEffect(() => {
     api.get("/owner/my-dashboard").then((response) => {
@@ -27,8 +31,8 @@ export default function MyDashboardPage() {
         .anim-delay-2 { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both; }
         .anim-delay-3 { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both; }
         
-        .w-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.03); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-        .w-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: #cbd5e1; }
+        .w-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .w-card:hover { transform: translateY(-4px); box-shadow: none; border-color: #cbd5e1; }
         
         .stat-glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); padding: 24px; border-radius: 20px; color: white; display: flex; align-items: center; gap: 16px; }
         .stat-glass h3 { margin: 0; font-size: 32px; font-weight: 800; font-family: monospace; }
@@ -43,14 +47,7 @@ export default function MyDashboardPage() {
 
       <ModuleTabs
         title="My Dashboard"
-        items={[
-          { label: "My Dashboard", to: "/admin/my-dashboard" },
-          { label: "My Appointments", to: "/admin/my-appointments" },
-          { label: "My Schedule", to: "/admin/my-schedule" },
-          { label: "My Commission", to: "/admin/my-commission" },
-          { label: "My Payroll", to: "/admin/my-payroll" },
-          { label: "My Profile", to: "/admin/my-profile" }
-        ]}
+        items={myTabs}
       />
 
       <div className="anim-delay-1" style={{ background: "linear-gradient(135deg, #4f46e5, #0f172a)", borderRadius: 24, padding: "40px 32px", color: "white", marginBottom: 32 }}>

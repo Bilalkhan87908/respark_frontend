@@ -20,10 +20,10 @@ export default function OwnerAuditLogsPage() {
           ...(filters.module ? { module: filters.module } : {}),
           ...(filters.action ? { action: filters.action } : {})
         },
-        fallbackFilename: "audit-logs-export.csv"
+        fallbackFilename: "activity-logs-export.csv"
       });
     } catch (error) {
-      setStatus({ error: formatApiError(error, "Could not export audit logs"), success: "", loading: false });
+      setStatus({ error: formatApiError(error, "Could not export activity logs"), success: "", loading: false });
     }
   };
 
@@ -39,7 +39,7 @@ export default function OwnerAuditLogsPage() {
       setRows(response.data || []);
       setStatus((current) => ({ ...current, error: "", loading: false }));
     } catch (error) {
-      setStatus((current) => ({ ...current, error: formatApiError(error, "Could not load audit logs"), loading: false }));
+      setStatus((current) => ({ ...current, error: formatApiError(error, "Could not load activity logs"), loading: false }));
     }
   }, [filters]);
 
@@ -63,19 +63,22 @@ export default function OwnerAuditLogsPage() {
         .anim-fade { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
         .delay-1 { animation-delay: 0.1s; }
         
-        .al-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s; }
-        .al-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .al-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s; }
+        .al-card:hover { transform: translateY(-2px); box-shadow: none; border-color: #cbd5e1; }
         
         .al-input { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 14px; outline: none; transition: all 0.2s; background: #fff; }
-        .al-input:focus { border-color: #0f766e; box-shadow: 0 0 0 4px rgba(15,118,110,0.1); }
+        .al-input:focus { border-color: #0f766e; box-shadow: none; }
         
-        .log-row { display: grid; grid-template-columns: 200px 1fr; gap: 24px; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
-        .log-row:hover { background: #f8fafc; }
+        /* Table Styles to match Respark */
+        .activity-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-family: 'Inter', sans-serif; }
+        .activity-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-size: 13px; font-weight: 600; color: #0f172a; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+        .activity-table td { padding: 14px 16px; font-size: 13px; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; white-space: nowrap; }
+        .activity-table tr:hover td { background: #f8fafc; }
       `}</style>
 
       <ModuleTabs
-        title="Audit Logs"
-        items={[{ label: "Audit Logs", to: "/admin/audit-logs" }]}
+        title="Activity Logs"
+        items={[{ label: "Activity Logs", to: "/admin/audit-logs" }]}
         actions={
           <button type="button" onClick={exportCsv} style={{ padding: "10px 20px", borderRadius: 12, background: "white", border: "1px solid #cbd5e1", color: "#0f172a", fontWeight: 600, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", transition: "all 0.2s" }} onMouseOver={e => e.currentTarget.style.background = '#f8fafc'} onMouseOut={e => e.currentTarget.style.background = 'white'}>
             <Download size={16} /> Export CSV
@@ -86,10 +89,10 @@ export default function OwnerAuditLogsPage() {
       <div className="anim-fade" style={{ background: "linear-gradient(135deg, #042f2e, #134e4a)", borderRadius: 24, padding: "40px 32px", color: "white", marginBottom: 32, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 style={{ margin: "0 0 8px", fontSize: 32, fontWeight: 800, display: "flex", alignItems: "center", gap: 12 }}>
-            <ShieldAlert size={32} color="#5eead4" />
-            Security Audit Logs
+            <Activity size={32} color="#5eead4" />
+            Activity Logs
           </h1>
-          <p style={{ margin: 0, color: "#99f6e4", fontSize: 15, maxWidth: 500 }}>Read-only activity trail for critical salon actions, setting changes, and system events.</p>
+          <p style={{ margin: 0, color: "#99f6e4", fontSize: 15, maxWidth: 500 }}>Track everyday operational events across the salon.</p>
         </div>
         <div style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)", color: "white", padding: "12px 24px", borderRadius: 20, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.2)" }}>
           <Activity size={20} /> Recorded Events: {rows.length}
@@ -108,7 +111,7 @@ export default function OwnerAuditLogsPage() {
             <div style={{ position: "relative" }}>
               <Layout size={16} color="#94a3b8" style={{ position: "absolute", left: 14, top: 13 }} />
               <select className="al-input" style={{ paddingLeft: 40 }} value={filters.module} onChange={(e) => setFilters({ ...filters, module: e.target.value })}>
-                <option value="">All Modules</option>
+                <option value="">All Features</option>
                 {modules.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </div>
@@ -123,22 +126,59 @@ export default function OwnerAuditLogsPage() {
           </div>
         </div>
 
-        <div>
-          {status.loading ? <PageLoader compact title="Loading audit trail" message="Pulling secure action logs..." /> : rows.map((row) => (
-            <div key={row.id} className="log-row">
-              <div>
-                <strong style={{ fontSize: 15, color: "#0f172a", display: "block", marginBottom: 6 }}>{row.action}</strong>
-                <span style={{ background: "#ccfbf1", color: "#0f766e", padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>{row.module}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", color: "#475569", fontSize: 14, lineHeight: 1.5 }}>
-                {row.summary || row.reference || "No additional context available for this action."}
-              </div>
-            </div>
-          ))}
-          {!status.loading && !rows.length && (
-            <div style={{ padding: 40 }}>
-              <EmptyState title="No audit logs matched" message="As soon as the salon performs trackable actions, they will appear here." />
-            </div>
+        <div style={{ overflowX: "auto" }}>
+          {status.loading ? (
+            <PageLoader compact title="Loading activity logs" message="Pulling secure action logs..." />
+          ) : (
+            <table className="activity-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Feature</th>
+                  <th>Action</th>
+                  <th>Performed by</th>
+                  <th>Guest/Staff Name</th>
+                  <th>Guest/Staff Number</th>
+                  <th>Invoice ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const logDate = new Date(row.createdAt);
+                  const dateStr = logDate.toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+                  const timeStr = logDate.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', hour12: true });
+                  
+                  const performedBy = row.actorMembership?.user?.name || row.actorUserId || "System";
+                  
+                  // Try to extract metadata if it exists, otherwise fallback to parsing from EntityId if possible, or "-"
+                  const metadata = row.metadata || {};
+                  const guestName = metadata.guestName || metadata.staffName || "-";
+                  const guestNumber = metadata.guestPhone || metadata.staffPhone || "-";
+                  const invoiceId = metadata.invoiceId || (row.entityType === 'Invoice' ? row.entityId : "-");
+
+                  return (
+                    <tr key={row.id}>
+                      <td>{dateStr}</td>
+                      <td>{timeStr}</td>
+                      <td style={{ textTransform: 'uppercase' }}>{row.module}</td>
+                      <td style={{ textTransform: 'uppercase' }}>{row.action}</td>
+                      <td>{performedBy}</td>
+                      <td>{guestName}</td>
+                      <td>{guestNumber}</td>
+                      <td>{invoiceId}</td>
+                    </tr>
+                  );
+                })}
+                {!status.loading && !rows.length && (
+                  <tr>
+                    <td colSpan="8" style={{ padding: 40, textAlign: "center" }}>
+                      <EmptyState title="No activity logs matched" message="As soon as the salon performs trackable actions, they will appear here." />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

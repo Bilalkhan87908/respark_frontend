@@ -17,6 +17,17 @@ const emptyForm = {
   isPopular: false
 };
 
+const DURATION_OPTIONS = [
+  { value: 15, label: "15 min" },
+  { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" },
+  { value: 60, label: "1 hour" },
+  { value: 120, label: "2 hours" },
+  { value: 180, label: "3 hours" },
+  { value: 240, label: "4 hours" },
+  { value: 300, label: "5 hours" }
+];
+
 export default function ServicesPage() {
   const [rows, setRows] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -148,7 +159,11 @@ export default function ServicesPage() {
           <form onSubmit={submit} className="form-grid">
             <input placeholder="Service name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
             <input type="number" min="0" placeholder="Price" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} />
-            <input type="number" min="1" placeholder="Duration (minutes)" value={form.durationMin} onChange={(event) => setForm({ ...form, durationMin: event.target.value })} />
+            <select value={form.durationMin} onChange={(event) => setForm({ ...form, durationMin: event.target.value })}>
+              {DURATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
             <select value={form.branchId} onChange={(event) => setForm({ ...form, branchId: event.target.value })}>
               <option value="">All branches / salon wide</option>
               {branches.map((branch) => (

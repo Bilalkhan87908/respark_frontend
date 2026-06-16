@@ -4,14 +4,18 @@ import EmptyState from "../../components/EmptyState";
 import IndianPhoneInput from "../../components/IndianPhoneInput";
 import ModuleTabs from "../../components/ModuleTabs";
 import PageLoader from "../../components/PageLoader";
+import { useAuth } from "../../context/AuthContext";
+import { getMyWorkspaceTabs } from "../../utils/myWorkspaceTabs";
 import { UserCircle, ShieldCheck, Mail, MapPin, Building, Sparkles, CheckCircle2 } from "lucide-react";
 
 export default function MyProfilePage() {
+  const { auth } = useAuth();
   const [form, setForm] = useState({ phone: "", profileNote: "", avatarUrl: "" });
   const [services, setServices] = useState([]);
   const [profileMeta, setProfileMeta] = useState(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const myTabs = getMyWorkspaceTabs(auth?.membership?.permissions || {});
 
   useEffect(() => {
     api.get("/owner/my-profile").then((response) => {
@@ -35,26 +39,19 @@ export default function MyProfilePage() {
         }
         .anim-scale { animation: scaleUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
         
-        .p-card { background: white; border-radius: 24px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,0.02); }
+        .p-card { background: white; border-radius: 24px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: none; }
         
         .p-input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 15px; outline: none; transition: all 0.2s; background: #f8fafc; }
-        .p-input:focus { border-color: #6366f1; background: #fff; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
+        .p-input:focus { border-color: #6366f1; background: #fff; box-shadow: none; }
         .p-label { display: block; font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px; }
         
         .p-btn { width: 100%; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.2s; border: none; background: #0f172a; color: white; margin-top: 16px; }
-        .p-btn:hover { background: #1e293b; transform: translateY(-2px); box-shadow: 0 8px 16px rgba(15, 23, 42, 0.15); }
+        .p-btn:hover { background: #1e293b; transform: translateY(-2px); box-shadow: none; }
       `}</style>
 
       <ModuleTabs
         title="My Profile"
-        items={[
-          { label: "My Dashboard", to: "/admin/my-dashboard" },
-          { label: "My Appointments", to: "/admin/my-appointments" },
-          { label: "My Schedule", to: "/admin/my-schedule" },
-          { label: "My Commission", to: "/admin/my-commission" },
-          { label: "My Payroll", to: "/admin/my-payroll" },
-          { label: "My Profile", to: "/admin/my-profile" }
-        ]}
+        items={myTabs}
       />
 
       {loading ? <PageLoader title="Loading your profile" message="Preparing account details..." /> : (

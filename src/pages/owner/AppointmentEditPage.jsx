@@ -110,6 +110,107 @@ export default function AppointmentEditPage() {
         actions={<Link to={`/admin/appointments/${id}`} className="module-tab">View Detail</Link>}
       />
 
+      <style>{`
+        .form-section-wizard {
+          display: flex;
+          gap: 32px;
+          border-bottom: 1px dashed #e2e8f0;
+          padding-bottom: 30px;
+          margin-bottom: 30px;
+        }
+        @media (max-width: 768px) {
+          .form-section-wizard {
+            flex-direction: column;
+            gap: 16px;
+          }
+        }
+        .wizard-head {
+          flex: 0 0 250px;
+        }
+        .wizard-head .step-circle {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 1.1rem;
+          margin-bottom: 12px;
+          box-shadow: none;
+        }
+        .wizard-head h4 {
+          margin: 0;
+          font-size: 1.15rem;
+          color: #0f172a;
+          font-weight: 600;
+        }
+        .wizard-body {
+          flex: 1;
+        }
+        .form-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 20px;
+        }
+        .premium-input, .wizard-body select {
+          width: 100%;
+          padding: 12px 14px;
+          border: 1px solid #cbd5e1;
+          border-radius: 10px;
+          font-size: 0.95rem;
+          box-sizing: border-box;
+          background: #fff;
+          transition: all 0.2s;
+        }
+        .premium-input:focus, .wizard-body select:focus {
+          border-color: #3b82f6;
+          box-shadow: none;
+          outline: none;
+        }
+        .wizard-body label {
+          display: block;
+        }
+        .wizard-body .muted {
+          color: #64748b;
+          font-weight: 600;
+          display: block;
+          margin-bottom: 8px;
+          letter-spacing: 0.5px;
+        }
+        .btn-primary-wizard {
+          padding: 14px 28px;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: none;
+        }
+        .btn-primary-wizard:hover {
+          transform: translateY(-1px);
+          box-shadow: none;
+        }
+        .checkbox-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+        }
+        .checkbox-row input[type="checkbox"] {
+          width: 20px;
+          height: 20px;
+          border-radius: 6px;
+          border: 1px solid #cbd5e1;
+          cursor: pointer;
+        }
+      `}</style>
+
       {status.loading && (
         <PageLoader
           title="Loading appointment edit form"

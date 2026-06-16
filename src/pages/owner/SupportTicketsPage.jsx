@@ -87,16 +87,16 @@ export default function SupportTicketsPage() {
         .delay-1 { animation-delay: 0.1s; }
         .delay-2 { animation-delay: 0.2s; }
         
-        .st-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s; }
-        .st-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-color: #cbd5e1; }
+        .st-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: none; transition: all 0.3s; }
+        .st-card:hover { transform: translateY(-2px); box-shadow: none; border-color: #cbd5e1; }
         
         .st-input { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 14px; outline: none; transition: all 0.2s; background: #fff; }
-        .st-input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+        .st-input:focus { border-color: #2563eb; box-shadow: none; }
         .st-label { display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         
         .st-btn { padding: 14px 24px; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s; border: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .st-btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
-        .st-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37,99,235,0.35); }
+        .st-btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; box-shadow: none; }
+        .st-btn-primary:hover { transform: translateY(-1px); box-shadow: none; }
         
         .st-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
       `}</style>
@@ -197,7 +197,7 @@ export default function SupportTicketsPage() {
           
           <div style={{ padding: 24, background: "#f1f5f9" }}>
             {status.loading ? <PageLoader compact title="Loading tickets..." /> : rows.map((row) => (
-              <div key={row.id} style={{ background: "white", padding: 24, borderRadius: 16, marginBottom: 16, border: "1px solid #e2e8f0", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
+              <div key={row.id} style={{ background: "white", padding: 24, borderRadius: 16, marginBottom: 16, border: "1px solid #e2e8f0", boxShadow: "none" }}>
                 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                   <div>

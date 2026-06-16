@@ -1,7 +1,7 @@
 import { Link, useOutletContext } from "react-router-dom";
 
 export default function CheckoutPage() {
-  const { salon } = useOutletContext();
+  const { salon, genericSettings } = useOutletContext();
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', padding: '60px 20px' }}>
@@ -12,7 +12,7 @@ export default function CheckoutPage() {
           <Link to={`/site/${salon.slug}/cart`} style={{ color: 'var(--sf-text-light)', textDecoration: 'none', marginBottom: 32, display: 'inline-block' }}>&larr; Back to Cart</Link>
           <h1 style={{ fontFamily: 'var(--sf-font-serif)', fontSize: '2.5rem', margin: '0 0 32px' }}>Checkout</h1>
           
-          <div style={{ background: 'white', padding: 32, borderRadius: 'var(--sf-radius-lg)', boxShadow: 'var(--sf-shadow)' }}>
+          <div style={{ background: 'white', padding: 32, borderRadius: 'var(--sf-radius-lg)', boxShadow: "none" }}>
             <h2 style={{ fontSize: '1.2rem', marginBottom: 24, borderBottom: '1px solid #eee', paddingBottom: 16 }}>Contact Information</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <input type="email" placeholder="Email Address" style={{ padding: 12, border: '1px solid #ccc', borderRadius: 8, width: '100%' }} />
@@ -27,6 +27,11 @@ export default function CheckoutPage() {
             <div style={{ background: '#f9f9f9', padding: 24, borderRadius: 8, border: '1px solid #ddd', textAlign: 'center' }}>
               <p style={{ color: 'var(--sf-text-light)', margin: 0 }}>Pay at salon counter</p>
             </div>
+            {genericSettings?.pickupDisclaimer ? (
+              <div style={{ background: '#eff6ff', color: '#1e3a8a', padding: 16, borderRadius: 12, marginTop: 16, border: '1px solid #bfdbfe' }}>
+                <strong>Pickup note:</strong> {genericSettings.pickupDisclaimer}
+              </div>
+            ) : null}
 
             <button className="sf-btn sf-btn-primary" style={{ width: '100%', padding: 16, marginTop: 40 }}>Confirm Order / Booking</button>
           </div>

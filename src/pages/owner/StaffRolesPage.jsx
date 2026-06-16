@@ -2,33 +2,17 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
+import { MODULE_GROUPS as SHARED_MODULE_GROUPS, PERMISSION_ACTIONS as ACTIONS } from "./staffAccessConfig";
 
 /* ─── config ─────────────────────────────────────── */
-const MODULE_GROUPS = [
-  {
-    group: "Core Operations",
-    color: "#3b82f6",
-    modules: ["dashboard", "appointments", "pos", "customers", "invoices", "payments"],
-  },
-  {
-    group: "Salon Setup",
-    color: "#8b5cf6",
-    modules: ["branches", "services", "staff", "staffSchedule", "inventory", "purchases"],
-  },
-  {
-    group: "Business",
-    color: "#f59e0b",
-    modules: ["memberships", "packages", "reports", "support", "settings"],
-  },
-  {
-    group: "My Portal",
-    color: "#10b981",
-    modules: ["myDashboard", "myAppointments", "mySchedule", "myCommission", "myPayroll", "myProfile"],
-  },
-];
-
-const ALL_MODULES = MODULE_GROUPS.flatMap((g) => g.modules);
-const ACTIONS = ["view", "create", "edit", "delete", "approve", "pay"];
+const GROUP_COLORS = ["#3b82f6", "#8b5cf6", "#f59e0b", "#06b6d4", "#64748b", "#10b981"];
+const MODULE_GROUPS = SHARED_MODULE_GROUPS.map((group, index) => ({
+  group: group.title,
+  hint: group.hint,
+  color: GROUP_COLORS[index % GROUP_COLORS.length],
+  modules: group.modules.map((module) => module.key),
+  labels: Object.fromEntries(group.modules.map((module) => [module.key, module.label])),
+}));
 
 const ACTION_META = {
   view:    { label: "View",    color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
@@ -161,6 +145,9 @@ export default function StaffRolesPage() {
   const [editingRoleId, setEditingRoleId] = useState("");
   const [loading, setLoading]         = useState(true);
   const [expandedUser, setExpandedUser] = useState(null);
+  const [accessControl, setAccessControl] = useState({ approvalRequiredForRoleEdits: true });
+  const [roleApprovalChecked, setRoleApprovalChecked] = useState(false);
+  const [roleFormError, setRoleFormError] = useState("");
   const [roleForm, setRoleForm] = useState({
     name: "",
     description: "",
@@ -168,21 +155,30 @@ export default function StaffRolesPage() {
   });
 
   const load = async () => {
-    const [rowsRes, rolesRes] = await Promise.all([
+    const [rowsRes, rolesRes, settingsRes] = await Promise.all([
       api.get("/owner/roles-permissions"),
       api.get("/owner/custom-roles"),
+      api.get("/owner/settings"),
     ]);
     setRows(rowsRes.data);
     setCustomRoles(rolesRes.data);
+    setAccessControl({
+      approvalRequiredForRoleEdits: true,
+      ...(settingsRes.data?.advancedSettings?.accessControl || {})
+    });
   };
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.get("/owner/roles-permissions"), api.get("/owner/custom-roles")])
-      .then(([rowsRes, rolesRes]) => {
+    Promise.all([api.get("/owner/roles-permissions"), api.get("/owner/custom-roles"), api.get("/owner/settings")])
+      .then(([rowsRes, rolesRes, settingsRes]) => {
         if (!active) return;
         setRows(rowsRes.data);
         setCustomRoles(rolesRes.data);
+        setAccessControl({
+          approvalRequiredForRoleEdits: true,
+          ...(settingsRes.data?.advancedSettings?.accessControl || {})
+        });
         setLoading(false);
       });
     return () => { active = false; };
@@ -219,6 +215,10 @@ export default function StaffRolesPage() {
 
   const saveRole = async (e) => {
     e.preventDefault();
+    if (accessControl.approvalRequiredForRoleEdits && !roleApprovalChecked) {
+      setRoleFormError("Approve this role update before saving because Access Control requires role-edit acknowledgement.");
+      return;
+    }
     const payload = {
       name: roleForm.name,
       description: roleForm.description,
@@ -230,6 +230,8 @@ export default function StaffRolesPage() {
       await api.post("/owner/custom-roles", payload);
     }
     setEditingRoleId("");
+    setRoleApprovalChecked(false);
+    setRoleFormError("");
     setRoleForm({ name: "", description: "", permissions: { dashboard: ["view"] } });
     await load();
   };
@@ -244,12 +246,14 @@ export default function StaffRolesPage() {
 
   const toggleRoleModuleAll = (moduleKey) => {
     const current = Array.isArray(roleForm.permissions?.[moduleKey]) ? roleForm.permissions[moduleKey] : [];
-    const allChecked = ACTIONS.every((a) => current.includes(a));
-    setRoleForm((f) => ({ ...f, permissions: { ...f.permissions, [moduleKey]: allChecked ? [] : [...ACTIONS] } }));
+    const hasAccess = current.length > 0;
+    setRoleForm((f) => ({ ...f, permissions: { ...f.permissions, [moduleKey]: hasAccess ? [] : [...ACTIONS] } }));
   };
 
   const startRoleEdit = (role) => {
     setEditingRoleId(role.id);
+    setRoleApprovalChecked(false);
+    setRoleFormError("");
     setRoleForm({
       name: role.name,
       description: role.description || "",
@@ -278,7 +282,7 @@ export default function StaffRolesPage() {
         .srp-card-title { font-size:16px; font-weight:700; color:#0f172a; margin:0 0 4px; }
         .srp-card-sub { font-size:13px; color:#64748b; margin:0 0 24px; }
         .srp-input { width:100%; padding:10px 12px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box; transition:border-color .2s; background:#fafafa; }
-        .srp-input:focus { border-color:#3b82f6; background:white; box-shadow:0 0 0 3px rgba(59,130,246,.08); }
+        .srp-input:focus { border-color:#3b82f6; background:white; box-shadow: none; }
         .srp-label { display:block; font-size:12px; font-weight:600; color:#475569; margin-bottom:6px; letter-spacing:0.3px; text-transform:uppercase; }
         .srp-btn-primary { background:#0f172a; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer; }
         .srp-btn-secondary { background:white; color:#64748b; border:1.5px solid #e2e8f0; padding:10px 20px; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer; }
@@ -313,7 +317,9 @@ export default function StaffRolesPage() {
               className="srp-create-btn"
               onClick={() => {
                 setEditingRoleId("");
-                setRoleForm({ name: "", description: "", permissionsText: JSON.stringify({ dashboard: ["view"] }, null, 2) });
+                setRoleApprovalChecked(false);
+                setRoleFormError("");
+                setRoleForm({ name: "", description: "", permissions: { dashboard: ["view"] } });
               }}
             >
               + Create New Role
@@ -353,6 +359,11 @@ export default function StaffRolesPage() {
                 <p className="srp-card-sub">
                   Configure the access level for this template. Staff assigned this role will inherit these permissions.
                 </p>
+                {accessControl.approvalRequiredForRoleEdits ? (
+                  <div style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fdba74", color: "#9a3412", fontSize: 13 }}>
+                    Settings guardrail is active: role changes need explicit acknowledgement before save.
+                  </div>
+                ) : null}
 
                 <form onSubmit={saveRole}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
@@ -387,7 +398,7 @@ export default function StaffRolesPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                           {group.modules.map((moduleKey) => {
                             const current = Array.isArray(roleForm.permissions?.[moduleKey]) ? roleForm.permissions[moduleKey] : [];
-                            const allChecked = ACTIONS.every((a) => current.includes(a));
+                            const allChecked = current.length > 0;
                             return (
                               <div key={moduleKey} style={{
                                 display: 'flex', alignItems: 'center', padding: '9px 14px',
@@ -396,45 +407,31 @@ export default function StaffRolesPage() {
                               }}>
                                 <div style={{ minWidth: 140, display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: group.color, flexShrink: 0 }} />
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{pretty(moduleKey)}</span>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{group.labels?.[moduleKey] || pretty(moduleKey)}</span>
                                 </div>
-                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 }}>
-                                  {ACTIONS.map((action) => {
-                                    const checked = current.includes(action);
-                                    const meta = ACTION_META[action];
-                                    return (
-                                      <button
-                                        key={action} type="button"
-                                        onClick={() => toggleRolePermission(moduleKey, action)}
-                                        style={{
-                                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                                          padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                          cursor: 'pointer', transition: 'all 0.15s',
-                                          border: `1.5px solid ${checked ? meta.border : '#e2e8f0'}`,
-                                          background: checked ? meta.bg : '#f8fafc',
-                                          color: checked ? meta.color : '#cbd5e1',
-                                          boxShadow: checked ? `0 0 0 1px ${meta.border}` : 'none',
-                                        }}
-                                      >
-                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: checked ? meta.color : '#e2e8f0', transition: 'background 0.15s' }} />
-                                        {meta.label}
-                                      </button>
-                                    );
-                                  })}
+                                <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', paddingRight: 10 }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: 10 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: allChecked ? '#10b981' : '#64748b' }}>
+                                      {allChecked ? 'Full Access' : 'No Access'}
+                                    </span>
+                                    <div style={{
+                                      position: 'relative', width: 44, height: 24, borderRadius: 34,
+                                      background: allChecked ? '#10b981' : '#cbd5e1', transition: '0.3s'
+                                    }}>
+                                      <input 
+                                        type="checkbox" 
+                                        style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} 
+                                        checked={allChecked} 
+                                        onChange={() => toggleRoleModuleAll(moduleKey)} 
+                                      />
+                                      <span style={{
+                                        position: 'absolute', height: 18, width: 18, left: 3, bottom: 3,
+                                        background: 'white', borderRadius: '50%', transition: '0.3s',
+                                        transform: allChecked ? 'translateX(20px)' : 'translateX(0)'
+                                      }} />
+                                    </div>
+                                  </label>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleRoleModuleAll(moduleKey)}
-                                  style={{
-                                    fontSize: 11, fontWeight: 700,
-                                    color: allChecked ? '#ef4444' : '#3b82f6',
-                                    background: allChecked ? '#fef2f2' : '#eff6ff',
-                                    border: `1px solid ${allChecked ? '#fecaca' : '#bfdbfe'}`,
-                                    padding: '4px 10px', borderRadius: 20, cursor: 'pointer', whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {allChecked ? '✕ Clear' : '✓ All'}
-                                </button>
                               </div>
                             );
                           })}
@@ -443,10 +440,28 @@ export default function StaffRolesPage() {
                     ))}
                   </div>
 
+                  {accessControl.approvalRequiredForRoleEdits ? (
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, color: "#334155", fontSize: 13, fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={roleApprovalChecked}
+                        onChange={(event) => setRoleApprovalChecked(event.target.checked)}
+                      />
+                      I reviewed and approve this role permission change.
+                    </label>
+                  ) : null}
+                  {roleFormError ? (
+                    <div style={{ marginBottom: 16, color: "#dc2626", fontSize: 13, fontWeight: 600 }}>
+                      {roleFormError}
+                    </div>
+                  ) : null}
+
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: "1px solid #f1f5f9", paddingTop: 20 }}>
                     {editingRoleId && (
                       <button type="button" className="srp-btn-secondary" onClick={() => {
                         setEditingRoleId("");
+                        setRoleApprovalChecked(false);
+                        setRoleFormError("");
                         setRoleForm({ name: "", description: "", permissions: { dashboard: ["view"] } });
                       }}>Cancel</button>
                     )}
@@ -458,24 +473,7 @@ export default function StaffRolesPage() {
               {/* Permission Matrix Card */}
               <div className="srp-card">
                 <p className="srp-card-title">👥 Live User Permission Matrix</p>
-                <p className="srp-card-sub">Click any permission chip to toggle it instantly. Use "All" to grant full access to a module.</p>
-
-                {/* Legend */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20, padding: "12px 16px", background: "#f8fafc", borderRadius: 8, border: "1px solid #f1f5f9" }}>
-                  {ACTIONS.map((action) => {
-                    const m = ACTION_META[action];
-                    return (
-                      <span key={action} style={{
-                        display: "inline-flex", alignItems: "center", gap: 5,
-                        padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                        background: m.bg, color: m.color, border: `1.5px solid ${m.border}`,
-                      }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: m.color }} />
-                        {m.label}
-                      </span>
-                    );
-                  })}
-                </div>
+                <p className="srp-card-sub">Use the toggles below to instantly grant or revoke full access to a module for any user.</p>
 
                 {rows.map((row) => {
                   const isExpanded = expandedUser === row.id;
@@ -539,7 +537,7 @@ export default function StaffRolesPage() {
                                 {group.modules.map((moduleKey) => {
                                   const current = Array.isArray(row.permissions?.[moduleKey])
                                     ? row.permissions[moduleKey] : [];
-                                  const allChecked = ACTIONS.every((a) => current.includes(a));
+                                  const allChecked = current.length > 0;
 
                                   return (
                                     <div key={moduleKey} style={{
@@ -551,66 +549,41 @@ export default function StaffRolesPage() {
                                       <div style={{ minWidth: 140, display: "flex", alignItems: "center", gap: 8 }}>
                                         <span style={{ width: 7, height: 7, borderRadius: "50%", background: group.color, flexShrink: 0 }} />
                                         <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
-                                          {pretty(moduleKey)}
+                                          {group.labels?.[moduleKey] || pretty(moduleKey)}
                                         </span>
                                       </div>
 
-                                      {/* chips */}
-                                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", flex: 1 }}>
-                                        {ACTIONS.map((action) => {
-                                          const checked = current.includes(action);
-                                          const meta    = ACTION_META[action];
-                                          return (
-                                            <button
-                                              key={action}
-                                              type="button"
+                                      <div style={{ flex: 1, display: "flex", justifyContent: "flex-end", paddingRight: 10 }}>
+                                        <label style={{ display: "flex", alignItems: "center", cursor: isSaving ? "not-allowed" : "pointer", gap: 10, opacity: isSaving ? 0.6 : 1 }}>
+                                          <span style={{ fontSize: 13, fontWeight: 600, color: allChecked ? "#10b981" : "#64748b" }}>
+                                            {allChecked ? "Full Access" : "No Access"}
+                                          </span>
+                                          <div style={{
+                                            position: "relative", width: 44, height: 24, borderRadius: 34,
+                                            background: allChecked ? "#10b981" : "#cbd5e1", transition: "0.3s"
+                                          }}>
+                                            <input
+                                              type="checkbox"
+                                              style={{ opacity: 0, width: 0, height: 0, position: "absolute" }}
+                                              checked={allChecked}
                                               disabled={isSaving}
-                                              onClick={() => togglePermission(row, moduleKey, action)}
-                                              style={{
-                                                display: "inline-flex", alignItems: "center", gap: 5,
-                                                padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                                                letterSpacing: 0.3, cursor: isSaving ? "not-allowed" : "pointer",
-                                                transition: "all 0.15s",
-                                                border: `1.5px solid ${checked ? meta.border : "#e2e8f0"}`,
-                                                background: checked ? meta.bg : "#f8fafc",
-                                                color: checked ? meta.color : "#cbd5e1",
-                                                boxShadow: checked ? `0 0 0 1px ${meta.border}` : "none",
+                                              onChange={async () => {
+                                                setSavingId(row.id);
+                                                const current2 = row.permissions || {};
+                                                const nextPerms = { ...current2, [moduleKey]: allChecked ? [] : [...ACTIONS] };
+                                                await api.patch(`/owner/users/${row.id}`, { permissions: nextPerms });
+                                                await load();
+                                                setSavingId("");
                                               }}
-                                            >
-                                              <span style={{
-                                                width: 7, height: 7, borderRadius: "50%",
-                                                background: checked ? meta.color : "#e2e8f0",
-                                                transition: "background 0.15s",
-                                              }} />
-                                              {meta.label}
-                                            </button>
-                                          );
-                                        })}
+                                            />
+                                            <span style={{
+                                              position: "absolute", height: 18, width: 18, left: 3, bottom: 3,
+                                              background: "white", borderRadius: "50%", transition: "0.3s",
+                                              transform: allChecked ? "translateX(20px)" : "translateX(0)"
+                                            }} />
+                                          </div>
+                                        </label>
                                       </div>
-
-                                      {/* All / Clear toggle */}
-                                      <button
-                                        type="button"
-                                        disabled={isSaving}
-                                        onClick={async () => {
-                                          setSavingId(row.id);
-                                          const current2 = row.permissions || {};
-                                          const nextPerms = { ...current2, [moduleKey]: allChecked ? [] : [...ACTIONS] };
-                                          await api.patch(`/owner/users/${row.id}`, { permissions: nextPerms });
-                                          await load();
-                                          setSavingId("");
-                                        }}
-                                        style={{
-                                          fontSize: 11, fontWeight: 700,
-                                          color: allChecked ? "#ef4444" : "#3b82f6",
-                                          background: allChecked ? "#fef2f2" : "#eff6ff",
-                                          border: `1px solid ${allChecked ? "#fecaca" : "#bfdbfe"}`,
-                                          padding: "4px 10px", borderRadius: 20,
-                                          cursor: "pointer", whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {allChecked ? "✕ Clear" : "✓ All"}
-                                      </button>
                                     </div>
                                   );
                                 })}

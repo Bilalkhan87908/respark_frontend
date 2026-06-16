@@ -81,16 +81,16 @@ export default function CustomerPortalSettingsPage() {
   return (
     <div className="page-shell" style={{ paddingBottom: 60 }}>
       <style>{`
-        .p-card { background: white; border-radius: 20px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+        .p-card { background: white; border-radius: 20px; padding: 32px; border: 1px solid #e2e8f0; box-shadow: none; }
         .p-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 24px; display: flex; align-items: center; gap: 10px; }
         
         .p-input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 15px; transition: all 0.2s; background: #fff; outline: none; }
-        .p-input:focus { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1); }
+        .p-input:focus { border-color: #6366f1; box-shadow: none; }
         .p-label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 8px; }
         
         .p-btn { padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; transition: all 0.2s; border: none; display: inline-flex; align-items: center; gap: 8px; }
-        .p-btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: 0 4px 14px rgba(99,102,241,0.3); }
-        .p-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+        .p-btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: none; }
+        .p-btn-primary:hover { transform: translateY(-1px); box-shadow: none; }
         .p-btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
         
         .link-box { display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 12px; transition: all 0.2s; }

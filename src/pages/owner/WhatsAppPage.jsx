@@ -69,6 +69,7 @@ export default function WhatsAppPage() {
   const [logFilters, setLogFilters] = useState({ q: "", status: "", templateType: "" });
   const [status, setStatus] = useState({ error: "", success: "" });
   const [loading, setLoading] = useState(true);
+  const [settingsLinkMeta, setSettingsLinkMeta] = useState({ gatewayProvider: "", senderId: "", whatsappEnabled: true });
 
   const mode = location.pathname.includes("/settings")
     ? "settings"
@@ -80,7 +81,7 @@ export default function WhatsAppPage() {
 
   const load = useCallback(async () => {
     try {
-      const [settingsResponse, logsResponse, automationResponse, templatesResponse] = await Promise.all([
+      const [settingsResponse, logsResponse, automationResponse, templatesResponse, ownerSettingsResponse] = await Promise.all([
         api.get("/owner/whatsapp/settings"),
         api.get("/owner/whatsapp/logs", {
           params: {
@@ -90,12 +91,18 @@ export default function WhatsAppPage() {
           }
         }),
         api.get("/owner/whatsapp/automations"),
-        api.get("/owner/message-templates").catch(() => ({ data: [] }))
+        api.get("/owner/message-templates").catch(() => ({ data: [] })),
+        api.get("/owner/settings").catch(() => ({ data: {} }))
       ]);
       setSettings({ ...emptySettings, ...(settingsResponse.data || {}) });
       setLogs(logsResponse.data || []);
       setAutomations(automationResponse.data || []);
       setTemplates(templatesResponse.data || []);
+      setSettingsLinkMeta({
+        gatewayProvider: ownerSettingsResponse.data?.smsSettings?.gatewayProvider || "",
+        senderId: ownerSettingsResponse.data?.smsSettings?.senderId || "",
+        whatsappEnabled: ownerSettingsResponse.data?.advancedSettings?.notificationSettings?.whatsappEnabled !== false
+      });
       setLoading(false);
     } catch (error) {
       setStatus({ error: formatApiError(error, "Could not load WhatsApp workspace"), success: "" });
@@ -337,6 +344,14 @@ export default function WhatsAppPage() {
       {mode === "settings" && (
         <div className="panel-card">
           <h3>WhatsApp Settings</h3>
+          <div className="badge-row" style={{ marginBottom: 16 }}>
+            <span className="badge">Settings Provider {settingsLinkMeta.gatewayProvider ? settingsLinkMeta.gatewayProvider.replace("_PLACEHOLDER", "") : "Not Set"}</span>
+            <span className="badge">Sender {settingsLinkMeta.senderId || "Not Set"}</span>
+            <span className={`badge ${settingsLinkMeta.whatsappEnabled ? "" : "badge-cancelled"}`}>WhatsApp Alerts {settingsLinkMeta.whatsappEnabled ? "On" : "Off"}</span>
+          </div>
+          <p className="item-meta" style={{ marginTop: 0, marginBottom: 16 }}>
+            Yeh screen aur <code>Settings &rarr; SMS Center / Notification Settings</code> ab linked hain. Idhar provider ya sender update karne se owner settings snapshot bhi sync ho jata hai.
+          </p>
           <form className="form-grid" onSubmit={saveSettings}>
             <input placeholder="Provider name" value={settings.providerName} onChange={(e) => setSettings({ ...settings, providerName: e.target.value })} />
             <input placeholder="Sender name" value={settings.senderName} onChange={(e) => setSettings({ ...settings, senderName: e.target.value })} />

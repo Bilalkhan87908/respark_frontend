@@ -75,7 +75,7 @@ export default function AppointmentDetailPage() {
     try {
       const response = await api.post(`/owner/appointments/${id}/convert-to-invoice`);
       setStatus((current) => ({ ...current, success: `Invoice ${response.data.invoiceNumber} created from appointment.` }));
-      navigate(`/admin/invoices`);
+      navigate(response.data?.id ? `/admin/pos-dashboard/${response.data.id}` : "/admin/pos-dashboard");
     } catch (error) {
       setStatus((current) => ({ ...current, error: formatApiError(error, "Could not convert appointment to invoice") }));
     }
@@ -106,7 +106,7 @@ export default function AppointmentDetailPage() {
       {appointment && (
         <>
           {/* Dashboard Style Hero Card */}
-          <div style={{ background: "white", padding: "24px 32px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)", marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "white", padding: "24px 32px", borderRadius: "12px", boxShadow: "none", marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px", border: "1px solid #e2e8f0" }}>
             <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
               <div style={{ background: "#eff6ff", color: "#3b82f6", width: "64px", height: "64px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Ticket size={32} />
@@ -121,7 +121,7 @@ export default function AppointmentDetailPage() {
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <span className={`badge badge-${String(appointment.status).toLowerCase()}`} style={{ fontSize: "14px", padding: "8px 20px", borderRadius: "20px", textTransform: "uppercase", fontWeight: "700", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+              <span className={`badge badge-${String(appointment.status).toLowerCase()}`} style={{ fontSize: "14px", padding: "8px 20px", borderRadius: "20px", textTransform: "uppercase", fontWeight: "700", boxShadow: "none" }}>
                 {appointment.status}
               </span>
               <div style={{ marginTop: "12px", fontSize: "13px", color: "#94a3b8", fontWeight: "500" }}>
@@ -135,13 +135,13 @@ export default function AppointmentDetailPage() {
             {/* Left Column */}
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               
-              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "none", border: "1px solid #f1f5f9" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px", color: "#1e293b", fontSize: "18px" }}>
                   <Scissors size={20} color="#3b82f6" /> Requested Services
                 </h3>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
                   {(appointment.items || []).map((item) => (
-                    <div key={item.id} style={{ padding: "20px", border: "1px solid #e2e8f0", borderRadius: "12px", background: "linear-gradient(to bottom, #ffffff, #f8fafc)", boxShadow: "0 2px 4px rgba(0,0,0,0.02)", position: "relative", display: "flex", flexDirection: "column" }}>
+                    <div key={item.id} style={{ padding: "20px", border: "1px solid #e2e8f0", borderRadius: "12px", background: "linear-gradient(to bottom, #ffffff, #f8fafc)", boxShadow: "none", position: "relative", display: "flex", flexDirection: "column" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
                         <strong style={{ fontSize: "16px", color: "#0f172a", flex: 1 }}>{item.service?.name}</strong>
                         <span style={{ fontSize: "13px", color: "#3b82f6", fontWeight: "600", background: "#eff6ff", padding: "4px 10px", borderRadius: "12px" }}>
@@ -169,7 +169,7 @@ export default function AppointmentDetailPage() {
                 </div>
               </div>
 
-              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "none", border: "1px solid #f1f5f9" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#1e293b", fontSize: "18px" }}>
                   <AlignLeft size={20} color="#3b82f6" /> Booking Notes
                 </h3>
@@ -184,7 +184,7 @@ export default function AppointmentDetailPage() {
             {/* Right Column */}
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               
-              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "none", border: "1px solid #f1f5f9" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#1e293b", fontSize: "16px" }}>
                   <Settings size={18} color="#64748b" /> Update Booking
                 </h3>
@@ -209,7 +209,7 @@ export default function AppointmentDetailPage() {
                 </div>
               </div>
 
-              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "none", border: "1px solid #f1f5f9" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#1e293b", fontSize: "16px" }}>
                   <CreditCard size={18} color="#64748b" /> Billing & Links
                 </h3>
@@ -254,7 +254,7 @@ export default function AppointmentDetailPage() {
                 )}
               </div>
 
-              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)", border: "1px solid #f1f5f9" }}>
+              <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "none", border: "1px solid #f1f5f9" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px", color: "#1e293b", fontSize: "16px" }}>
                   <Activity size={18} color="#64748b" /> Activity Log
                 </h3>

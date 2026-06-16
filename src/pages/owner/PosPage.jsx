@@ -70,7 +70,7 @@ export default function PosPage() {
   const [memDraft, setMemDraft] = useState({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0, 10), customServices: [] });
   const [memSearch, setMemSearch] = useState("");
   const [memServiceSearch, setMemServiceSearch] = useState("");
-  const [newGuestForm, setNewGuestForm] = useState({ name: "", phone: "", email: "", gender: "FEMALE" });
+  const [newGuestForm, setNewGuestForm] = useState({ name: "", phone: "", email: "", gender: "FEMALE", alternatePhone: "", dateOfBirth: "", anniversary: "", gst: "", source: "", notes: "" });
   const [form, setForm] = useState({
     customerId: "",
     branchId: "",
@@ -561,7 +561,7 @@ export default function PosPage() {
       setGuestSearchInput(res.data.name);
       setForm(c => ({ ...c, customerId: res.data.id }));
       setShowAddGuestModal(false);
-      setNewGuestForm({ name: "", phone: "", email: "", gender: "FEMALE" });
+      setNewGuestForm({ name: "", phone: "", email: "", gender: "FEMALE", alternatePhone: "", dateOfBirth: "", anniversary: "", gst: "", source: "", notes: "" });
       await loadContext(res.data.id, form.branchId);
       setStatus({ error: "", success: "Guest added successfully!" });
     } catch (err) {
@@ -1041,14 +1041,21 @@ export default function PosPage() {
       
       {showAddGuestModal && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "white", padding: 24, borderRadius: 12, width: 400, boxShadow: "none" }}>
+          <div style={{ background: "white", padding: 24, borderRadius: 12, width: 480, maxHeight: "90vh", overflowY: "auto", boxShadow: "none" }}>
             <h3 style={{ marginTop: 0, marginBottom: 16, color: "#0f172a", fontSize: "18px" }}>Quick Add Guest</h3>
             <form onSubmit={handleAddGuest} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} placeholder="Full Name *" required value={newGuestForm.name} onChange={e => setNewGuestForm(c => ({ ...c, name: e.target.value }))} />
               <IndianPhoneInput
-                required
+                    required
                 value={newGuestForm.phone}
                 onChange={(phone) => setNewGuestForm(c => ({ ...c, phone }))}
+                style={{ width: "100%", borderRadius: 6 }}
+                inputStyle={{ padding: "10px" }}
+              />
+              <IndianPhoneInput
+                value={newGuestForm.alternatePhone}
+                onChange={(alternatePhone) => setNewGuestForm(c => ({ ...c, alternatePhone }))}
+                placeholder="Alternate Phone"
                 style={{ width: "100%", borderRadius: 6 }}
                 inputStyle={{ padding: "10px" }}
               />
@@ -1058,6 +1065,11 @@ export default function PosPage() {
                 <option value="MALE">Male</option>
                 <option value="UNISEX">Other</option>
               </select>
+              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} type="date" placeholder="Date of Birth" value={newGuestForm.dateOfBirth} onChange={e => setNewGuestForm(c => ({ ...c, dateOfBirth: e.target.value }))} />
+              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} type="date" placeholder="Anniversary Date" value={newGuestForm.anniversary} onChange={e => setNewGuestForm(c => ({ ...c, anniversary: e.target.value }))} />
+              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} placeholder="GST Number" value={newGuestForm.gst} onChange={e => setNewGuestForm(c => ({ ...c, gst: e.target.value }))} />
+              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} placeholder="Source (e.g. Walk-in, Referral)" value={newGuestForm.source} onChange={e => setNewGuestForm(c => ({ ...c, source: e.target.value }))} />
+              <textarea style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none", minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="Notes" value={newGuestForm.notes} onChange={e => setNewGuestForm(c => ({ ...c, notes: e.target.value }))} />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button type="button" style={{ flex: 1, padding: "10px", background: "#f1f5f9", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600, color: "#475569" }} onClick={() => setShowAddGuestModal(false)}>Cancel</button>
                 <button type="submit" style={{ flex: 1, padding: "10px", background: "#0f172a", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>Save Guest</button>

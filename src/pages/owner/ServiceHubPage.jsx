@@ -354,14 +354,14 @@ export default function ServiceHubPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button
                         type="button"
-                        style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 4, background: 'white', cursor: 'pointer' }}
+                        style={{ padding: '6px 14px', border: '1px solid #3b82f6', borderRadius: 6, background: '#eff6ff', color: '#2563eb', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
                         onClick={() => startEditService(service)}
                       >
                         Edit
                       </button>
                       <button
                         type="button"
-                        style={{ padding: '6px 12px', border: 'none', borderRadius: 4, background: '#ef4444', color: 'white', cursor: 'pointer' }}
+                        style={{ padding: '6px 14px', border: '1px solid #fca5a5', borderRadius: 6, background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
                         onClick={() => archiveService(service.id)}
                       >
                         Archive

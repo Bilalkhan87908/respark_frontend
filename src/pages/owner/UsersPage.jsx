@@ -640,24 +640,24 @@ const handleDirectorySelect = (rowId) => {
                       </div>
 
                       {/* Row 2: DOB, Gender, Role */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: 16, marginBottom: 16 }}>
                         <div className="hub-form-group">
                           <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Date of Birth</label>
                           <input type="date" className="hub-input" value={form.dateOfBirth} onChange={e => setForm({...form, dateOfBirth: e.target.value})} />
                         </div>
                         <div className="hub-form-group">
                           <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Gender</label>
-                          <div style={{ display: 'flex', gap: 24, paddingTop: 6 }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#334155', cursor: 'pointer' }}>
-                              <input type="radio" name="editGender" value="MALE" checked={form.gender === "MALE"} onChange={e => setForm({...form, gender: e.target.value})} style={{ width: 16, height: 16, accentColor: '#2563eb' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 28, height: 38 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#334155', cursor: 'pointer' }}>
+                              <input type="radio" name="editGender" value="MALE" checked={form.gender === "MALE"} onChange={e => setForm({...form, gender: e.target.value})} style={{ width: 18, height: 18, accentColor: '#2563eb', margin: 0 }} />
                               Male
                             </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#334155', cursor: 'pointer' }}>
-                              <input type="radio" name="editGender" value="FEMALE" checked={form.gender === "FEMALE"} onChange={e => setForm({...form, gender: e.target.value})} style={{ width: 16, height: 16, accentColor: '#2563eb' }} />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#334155', cursor: 'pointer' }}>
+                              <input type="radio" name="editGender" value="FEMALE" checked={form.gender === "FEMALE"} onChange={e => setForm({...form, gender: e.target.value})} style={{ width: 18, height: 18, accentColor: '#2563eb', margin: 0 }} />
                               Female
                             </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#334155', cursor: 'pointer' }}>
-                              <input type="radio" name="editGender" value="OTHER" checked={form.gender === "OTHER"} onChange={e => setForm({...form, gender: e.target.value})} style={{ width: 16, height: 16, accentColor: '#2563eb' }} />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#334155', cursor: 'pointer' }}>
+                              <input type="radio" name="editGender" value="OTHER" checked={form.gender === "OTHER"} onChange={e => setForm({...form, gender: e.target.value})} style={{ width: 18, height: 18, accentColor: '#2563eb', margin: 0 }} />
                               Other
                             </label>
                           </div>
@@ -670,11 +670,17 @@ const handleDirectorySelect = (rowId) => {
                         </div>
                       </div>
 
-                      {/* Row 3: Username, Position */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                      {/* Row 3: Username, Password, Position */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, alignItems: 'end' }}>
                         <div className="hub-form-group">
                           <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Username</label>
-                          <input type="text" className="hub-input" value={form.useMobileAsUsername ? form.phone : form.username} onChange={e => setForm({...form, username: e.target.value, useMobileAsUsername: false})} placeholder="Enter Username" disabled={form.useMobileAsUsername} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input type="text" className="hub-input" style={{ flex: 1 }} value={form.useMobileAsUsername ? form.phone : form.username} onChange={e => setForm({...form, username: e.target.value, useMobileAsUsername: false})} placeholder="Enter Username" disabled={form.useMobileAsUsername} />
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#64748b', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              <input type="checkbox" checked={form.useMobileAsUsername} onChange={e => setForm({...form, useMobileAsUsername: e.target.checked})} style={{ width: 14, height: 14, accentColor: '#2563eb' }} />
+                              Use Mobile
+                            </label>
+                          </div>
                         </div>
                         <div className="hub-form-group">
                           <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Position</label>

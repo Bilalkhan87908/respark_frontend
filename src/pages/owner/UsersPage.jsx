@@ -663,10 +663,24 @@ const handleDirectorySelect = (rowId) => {
                           </div>
                         </div>
                         <div className="hub-form-group">
-                          <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Role</label>
-                          <select className="hub-input" value={form.salonRole} onChange={(event) => applyRolePreset(event.target.value)}>
-                            {ROLE_OPTIONS.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
-                          </select>
+                      <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Role</label>
+                      <select className="hub-input" value={form.customRoleId || form.salonRole} onChange={(e) => {
+                        const val = e.target.value;
+                        const matchedCustom = customRoles.find(r => r.id === val);
+                        if (matchedCustom) {
+                          applyCustomRole(val);
+                        } else {
+                          applyRolePreset(val);
+                        }
+                      }}>
+                        <optgroup label="Custom Roles">
+                          {customRoles.length === 0 && <option value="" disabled>No custom roles created</option>}
+                          {customRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                        </optgroup>
+                        <optgroup label="Default Roles">
+                          {ROLE_OPTIONS.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                        </optgroup>
+                      </select>
                         </div>
                       </div>
 
@@ -910,8 +924,22 @@ const handleDirectorySelect = (rowId) => {
                     </div>
                     <div className="hub-form-group">
                       <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 4 }}>Role</label>
-                      <select className="hub-input" value={form.salonRole} onChange={e => applyRolePreset(e.target.value)}>
-                        {ROLE_OPTIONS.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                      <select className="hub-input" value={form.customRoleId || form.salonRole} onChange={(e) => {
+                        const val = e.target.value;
+                        const matchedCustom = customRoles.find(r => r.id === val);
+                        if (matchedCustom) {
+                          applyCustomRole(val);
+                        } else {
+                          applyRolePreset(val);
+                        }
+                      }}>
+                        <optgroup label="Custom Roles">
+                          {customRoles.length === 0 && <option value="" disabled>No custom roles created</option>}
+                          {customRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                        </optgroup>
+                        <optgroup label="Default Roles">
+                          {ROLE_OPTIONS.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                        </optgroup>
                       </select>
                     </div>
                   </div>

@@ -26,6 +26,7 @@ const OwnerAuditLogsPage = lazy(() => import("./pages/owner/OwnerAuditLogsPage")
 const WhatsAppPage = lazy(() => import("./pages/owner/WhatsAppPage"));
 const BranchesPage = lazy(() => import("./pages/owner/BranchesPage"));
 const InventoryPage = lazy(() => import("./pages/owner/InventoryPage"));
+const ProductCategoriesPage = lazy(() => import("./pages/owner/ProductCategoriesPage"));
 const MembershipsPage = lazy(() => import("./pages/owner/MembershipsPage"));
 const MyAppointmentsPage = lazy(() => import("./pages/owner/MyAppointmentsPage"));
 const MyCommissionPage = lazy(() => import("./pages/owner/MyCommissionPage"));
@@ -102,7 +103,7 @@ const Protected = () => {
           label: "Operations",
           hint: "Daily flow",
           items: [
-            can("inventory") && enabled("inventory") && { label: "Products", to: "/admin/inventory" },
+            can("inventory") && enabled("inventory") && { label: "Products", to: "/admin/product-categories" },
             can("packages") && { label: "Packages Manage", to: "/admin/packages" },
             can("memberships") && { label: "Membership Manage", to: "/admin/memberships" },
             can("services") && { label: "Services", to: "/admin/services" }
@@ -375,6 +376,7 @@ export default function App() {
           <Route path="/admin/invoices" element={<Navigate to="/admin/pos-dashboard" replace />} />
           <Route path="/admin/invoices/:id" element={<Navigate to="/admin/pos-dashboard" replace />} />
           <Route path="/admin/payments" element={<OwnerRoute moduleKey="payments" element={<PaymentsPage />} />} />
+          <Route path="/admin/product-categories" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<ProductCategoriesPage />} />} />
           <Route path="/admin/inventory" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<InventoryPage />} />} />
           <Route path="/admin/inventory/approval" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<InventoryPage />} />} />
           <Route path="/admin/inventory/reconciliation" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<InventoryPage />} />} />

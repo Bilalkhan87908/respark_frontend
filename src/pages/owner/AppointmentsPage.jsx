@@ -514,41 +514,26 @@ export default function AppointmentsPage() {
       const startDate = new Date(row.startAt);
       const endDate = new Date(row.endAt);
 
-      // Calculate duration in minutes from appointment-level startAt → endAt
+      // Duration from DB appointment-level startAt → endAt
       let diffMin = (endDate.getTime() - startDate.getTime()) / 60000;
+      if (diffMin < 0 || isNaN(diffMin)) diffMin = 0;
 
-      // If appointment-level endAt is wrong/missing, try item-level endAt
-      if (diffMin <= APPOINTMENT_SLOT_MINUTES) {
-        // Try getting max endAt from items
-        const itemMaxEnd = (row.items || []).reduce((maxMs, item) => {
-          if (!item.endAt) return maxMs;
-          return Math.max(maxMs, new Date(item.endAt).getTime());
-        }, 0);
-        if (itemMaxEnd > startDate.getTime()) {
-          const itemDiff = (itemMaxEnd - startDate.getTime()) / 60000;
-          if (itemDiff > diffMin) diffMin = itemDiff;
-        }
-      }
+      // ALWAYS compare with service catalog total duration and use whichever is larger
+      // This corrects blocks where DB endAt was saved incorrectly (e.g. default 15min)
+      const catalogDuration = (row.items || []).reduce((sum, item) => {
+        const svc = services.find(s => s.id === item.serviceId);
+        return sum + Number(svc?.durationMin || 0);
+      }, 0);
+      if (catalogDuration > diffMin) diffMin = catalogDuration;
 
-      // If still too small, fall back to sum of service durations from catalog
-      if (diffMin <= APPOINTMENT_SLOT_MINUTES) {
-        const svcDiff = (row.items || []).reduce((sum, item) => {
-          const svc = services.find(s => s.id === item.serviceId);
-          return sum + Number(svc?.durationMin || DEFAULT_APPOINTMENT_DURATION_MINUTES);
-        }, 0);
-        if (svcDiff > diffMin) diffMin = svcDiff;
-      }
-
-      // Ensure minimum 1 slot
+      // Ensure at least 1 slot
       if (diffMin <= 0) diffMin = DEFAULT_APPOINTMENT_DURATION_MINUTES;
 
-      // Number of 15-min slots this appointment should span
       const durationSlots = Math.max(1, Math.ceil(diffMin / APPOINTMENT_SLOT_MINUTES));
 
-      if (typeof window !== "undefined" && window.console && rows.length > 0) {
+      if (typeof window !== "undefined" && window.console) {
         const endLabel = formatTimeForSelect(row.endAt);
-        const endIndex = TIME_SLOT_INDEX.get(endLabel);
-        console.log("[appt duration]", { id: row.id, startAt: row.startAt, endAt: row.endAt, startLabel, endLabel, startIndex, endIndex, diffMin, durationSlots });
+        console.log("[appt duration]", { id: row.id, startAt: row.startAt, endAt: row.endAt, diffMin, catalogDuration, durationSlots, endLabel });
       }
 
       getStaffIdsForAppointment(row).forEach((staffId) => {

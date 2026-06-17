@@ -1090,8 +1090,16 @@ export default function PosPage() {
                 <option value="MALE">Male</option>
                 <option value="UNISEX">Other</option>
               </select>
-              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} type="date" placeholder="Date of Birth" value={newGuestForm.dateOfBirth} onChange={e => setNewGuestForm(c => ({ ...c, dateOfBirth: e.target.value }))} />
-              <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} type="date" placeholder="Anniversary Date" value={newGuestForm.anniversary} onChange={e => setNewGuestForm(c => ({ ...c, anniversary: e.target.value }))} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "#475569", marginBottom: 4, fontWeight: 600 }}>Date of Birth</label>
+                  <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none", color: newGuestForm.dateOfBirth ? "#0f172a" : "#94a3b8" }} type="date" value={newGuestForm.dateOfBirth} onChange={e => setNewGuestForm(c => ({ ...c, dateOfBirth: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "#475569", marginBottom: 4, fontWeight: 600 }}>Anniversary</label>
+                  <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none", color: newGuestForm.anniversary ? "#0f172a" : "#94a3b8" }} type="date" value={newGuestForm.anniversary} onChange={e => setNewGuestForm(c => ({ ...c, anniversary: e.target.value }))} />
+                </div>
+              </div>
               <input style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none" }} placeholder="GST Number" value={newGuestForm.gst} onChange={e => setNewGuestForm(c => ({ ...c, gst: e.target.value }))} />
               <textarea style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: 6, width: "100%", boxSizing: "border-box", outline: "none", minHeight: 60, resize: "vertical", fontFamily: "inherit" }} placeholder="Notes" value={newGuestForm.notes} onChange={e => setNewGuestForm(c => ({ ...c, notes: e.target.value }))} />
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>

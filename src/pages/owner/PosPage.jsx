@@ -10,7 +10,7 @@ import PageLoader from "../../components/PageLoader";
 import IndianPhoneInput from "../../components/IndianPhoneInput";
 import './PosPage.css';
 
-const emptyServiceItem = { itemType: "SERVICE", serviceId: "", staffUserId: "", qty: 1, taxPct: 0 };
+const emptyServiceItem = { itemType: "SERVICE", serviceId: "", staffUserId: "", qty: 1, taxPct: 0, consumableItems: [] };
 const emptyProductItem = { itemType: "PRODUCT", productId: "", qty: 1, taxPct: 0, batchNumber: "" };
 const emptyMembershipItem = { itemType: "MEMBERSHIP", membershipPlanId: "", staffUserId: "", qty: 1, taxPct: 0 };
 const emptyPackageItem = { itemType: "PACKAGE", packageId: "", staffUserId: "", qty: 1, taxPct: 0 };
@@ -70,6 +70,11 @@ export default function PosPage() {
   const [memDraft, setMemDraft] = useState({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0, 10), customServices: [] });
   const [memSearch, setMemSearch] = useState("");
   const [memServiceSearch, setMemServiceSearch] = useState("");
+  const [showConsumableModal, setShowConsumableModal] = useState(false);
+  const [consumableItemIndex, setConsumableItemIndex] = useState(null);
+  const [consumableItems, setConsumableItems] = useState([]);
+  const [consumableSearch, setConsumableSearch] = useState("");
+
   const [newGuestForm, setNewGuestForm] = useState({ name: "", phone: "", email: "", gender: "FEMALE", alternatePhone: "", dateOfBirth: "", anniversary: "", gst: "", notes: "" });
   const [form, setForm] = useState({
     customerId: "",
@@ -99,6 +104,32 @@ export default function PosPage() {
     }));
     setLoading(false);
   }, []);
+
+  const openConsumableModal = (itemIndex) => {
+    setConsumableItemIndex(itemIndex);
+    setConsumableItems(form.items[itemIndex]?.consumableItems || []);
+    setConsumableSearch("");
+    setShowConsumableModal(true);
+  };
+
+  const addConsumableProduct = (product) => {
+    setConsumableItems(prev => [...prev, { productId: product.id, name: product.name, qty: 1, unit: product.unit || "pcs" }]);
+    setConsumableSearch("");
+  };
+
+  const updateConsumableItem = (ciIndex, patch) => {
+    setConsumableItems(prev => prev.map((ci, i) => i === ciIndex ? { ...ci, ...patch } : ci));
+  };
+
+  const removeConsumableItem = (ciIndex) => {
+    setConsumableItems(prev => prev.filter((_, i) => i !== ciIndex));
+  };
+
+  const saveConsumableItems = () => {
+    if (consumableItemIndex == null) return;
+    updateItem(consumableItemIndex, { consumableItems });
+    setShowConsumableModal(false);
+  };
 
   const loadContext = useCallback(async (customerId = form.customerId, branchId = form.branchId) => {
     setLoading(true);
@@ -928,7 +959,13 @@ export default function PosPage() {
                             onChange={(e) => updateItem(index, { batchNumber: e.target.value })}
                           />
                         ) : null}</td>
-                        <td>
+                        <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {item.itemType === "SERVICE" && (
+                            <button type="button" title="Add Consumable Items For Service" onClick={() => openConsumableModal(index)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, fontSize: 16, color: '#2563eb', borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>📦</button>
+                          )}
+                          {item.itemType === "SERVICE" && (
+                            <span title={`${item.consumableItems?.length || 0} consumable item(s)`} style={{ fontSize: 11, color: item.consumableItems?.length ? '#16a34a' : '#94a3b8', fontWeight: 600, cursor: 'default' }}>{item.consumableItems?.length || 0}</span>
+                          )}
                           <button type="button" className="pos-cart-remove" onClick={() => setForm(c => ({ ...c, items: c.items.filter((_, i) => i !== index) }))}>✕</button>
                         </td>
                       </tr>
@@ -1411,6 +1448,90 @@ export default function PosPage() {
             <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9", display:"flex", justifyContent:"flex-end", gap:12 }}>
               <button onClick={() => setShowMemModal(false)} style={{ padding:"10px 24px", background:"#fff", border:"1px solid #cbd5e1", borderRadius:8, fontWeight:600, cursor:"pointer", color:"#475569" }}>Cancel</button>
               <button onClick={handleAddMemToCart} disabled={!memModalMem || !memDraft.staffId} style={{ padding:"10px 24px", background:"#2563eb", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:(memModalMem && memDraft.staffId)?"pointer":"not-allowed", opacity:(memModalMem && memDraft.staffId)?1:0.6 }}>Add Membership</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConsumableModal && (
+        <div className="pos-dashboard-detail-modal" onClick={() => setShowConsumableModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Update Consumable Items</h2>
+              <button type="button" onClick={() => setShowConsumableModal(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#64748b' }}>✕</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              {consumableItems.map((ci, ciIndex) => (
+                <div key={ciIndex} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, padding: '10px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: 13, color: '#64748b', minWidth: 20 }}>{ciIndex + 1}</span>
+                  <div style={{ flex: 2, position: 'relative' }}>
+                    <input
+                      type="text"
+                      placeholder="Search By Name"
+                      value={ci.name || ""}
+                      readOnly
+                      style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13, boxSizing: 'border-box', background: '#fff' }}
+                    />
+                  </div>
+                  <div style={{ flex: 0, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder="qty"
+                      min="0.01"
+                      step="0.01"
+                      value={ci.qty}
+                      onChange={(e) => updateConsumableItem(ciIndex, { qty: Number(e.target.value) || 1 })}
+                      style={{ width: 70, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="unit"
+                    value={ci.unit || ""}
+                    onChange={(e) => updateConsumableItem(ciIndex, { unit: e.target.value })}
+                    style={{ width: 70, padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 13 }}
+                  />
+                  <button type="button" onClick={() => removeConsumableItem(ciIndex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 18, padding: 4 }}>🗑</button>
+                </div>
+              ))}
+
+              <div style={{ position: 'relative', marginTop: 12 }}>
+                <input
+                  type="text"
+                  placeholder="Search products by name..."
+                  value={consumableSearch}
+                  onChange={(e) => setConsumableSearch(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                />
+                {consumableSearch && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
+                    {(context.products || [])
+                      .filter(p => p.productType === "CONSUMABLE" || true)
+                      .filter(p => (p.name || "").toLowerCase().includes(consumableSearch.toLowerCase()))
+                      .slice(0, 10)
+                      .map(p => (
+                        <div
+                          key={p.id}
+                          onClick={() => addConsumableProduct(p)}
+                          style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: 13, color: '#334155' }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+                        >
+                          {p.name}
+                        </div>
+                      ))}
+                    {context.products.filter(p => (p.name || "").toLowerCase().includes(consumableSearch.toLowerCase())).length === 0 && (
+                      <div style={{ padding: '12px 14px', color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>No products found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ padding: '14px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button type="button" onClick={() => setShowConsumableModal(false)} style={{ padding: '10px 24px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, fontWeight: 600, cursor: 'pointer', color: '#475569' }}>Close</button>
+              <button type="button" onClick={saveConsumableItems} style={{ padding: '10px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Save</button>
             </div>
           </div>
         </div>

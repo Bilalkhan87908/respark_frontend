@@ -130,8 +130,9 @@ const getCellValue = (row, col) => {
 
   const defaultKey = col.toLowerCase().replace(/ /g, "_");
   const defaultKey2 = col.toLowerCase();
+  const camelKey = col.toLowerCase().replace(/ ([a-z])/g, (_, c) => c.toUpperCase());
   
-  let val = row[col] ?? row[defaultKey] ?? row[defaultKey2];
+  let val = row[col] ?? row[defaultKey] ?? row[defaultKey2] ?? row[camelKey];
   if (col === "Invoice #") val = row.invoiceNumber || row.invoice;
   if (col === "Invoice") val = row.invoiceNumber || row.invoice || val;
   if (col === "Total") val = row.total ?? row.amount ?? val;

@@ -20,6 +20,22 @@ const emptyVendor = {
   branchId: ""
 };
 
+const normalizeDisplayPhone = (value) => {
+  if (!value) return "";
+  let digits = String(value).replace(/\D/g, "");
+  if (digits.startsWith("0091")) digits = digits.slice(4);
+  else if (digits.startsWith("+91")) digits = digits.slice(3);
+  else if (digits.startsWith("91") && digits.length >= 12) digits = digits.slice(2);
+  else if (digits.startsWith("0")) digits = digits.slice(1);
+  return digits.slice(0, 10);
+};
+
+const toApiPhone = (value) => {
+  const digits = String(value || "").replace(/\D/g, "").slice(-10);
+  if (digits.length !== 10) return "";
+  return `+91${digits}`;
+};
+
 export default function VendorManagement({ branches = [], formatMoney }) {
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
@@ -85,8 +101,8 @@ export default function VendorManagement({ branches = [], formatMoney }) {
     setForm({
       name: vendor.name || "",
       firmName: vendor.firmName || "",
-      phone: vendor.phone || "",
-      alternateMobile: vendor.alternateMobile || "",
+      phone: normalizeDisplayPhone(vendor.phone || ""),
+      alternateMobile: normalizeDisplayPhone(vendor.alternateMobile || ""),
       email: vendor.email || "",
       gstNumber: vendor.gstNumber || "",
       address: vendor.address || "",
@@ -105,13 +121,29 @@ export default function VendorManagement({ branches = [], formatMoney }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus({ error: "", success: "" });
+
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      setStatus({ error: "Mobile number must be exactly 10 digits", success: "" });
+      return;
+    }
+    if (form.alternateMobile && form.alternateMobile.replace(/\D/g, "").length !== 10) {
+      setStatus({ error: "Alternate mobile number must be exactly 10 digits", success: "" });
+      return;
+    }
+
     setLoading(true);
     try {
+      const payload = {
+        ...form,
+        phone: toApiPhone(form.phone),
+        alternateMobile: form.alternateMobile ? toApiPhone(form.alternateMobile) : ""
+      };
       if (selectedVendor) {
-        await api.patch(`/owner/purchases/vendors/${selectedVendor.id}`, form);
+        await api.patch(`/owner/purchases/vendors/${selectedVendor.id}`, payload);
         setStatus({ success: "Vendor updated successfully!", error: "" });
       } else {
-        await api.post("/owner/purchases/vendors", form);
+        await api.post("/owner/purchases/vendors", payload);
         setStatus({ success: "Vendor created successfully!", error: "" });
       }
       await loadVendors();
@@ -206,6 +238,78 @@ export default function VendorManagement({ branches = [], formatMoney }) {
     gap: 6
   };
 
+  const Toggle = ({ checked, onChange, activeLabel = "Active", inactiveLabel = "Inactive" }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: "0.85rem", fontWeight: 500, color: checked ? "#3b82f6" : "#64748b" }}>
+        {checked ? activeLabel : inactiveLabel}
+      </span>
+      <button
+        type="button"
+        onClick={onChange}
+        style={{
+          width: 52,
+          height: 28,
+          borderRadius: 14,
+          border: "none",
+          background: checked ? "#3b82f6" : "#cbd5e1",
+          position: "relative",
+          cursor: "pointer",
+          transition: "background 0.25s ease",
+          boxShadow: "inset 0 1px 3px rgba(0,0,0,0.12)"
+        }}
+        aria-checked={checked}
+        role="switch"
+      >
+        <span style={{
+          display: "block",
+          width: 22,
+          height: 22,
+          borderRadius: "50%",
+          background: "white",
+          position: "absolute",
+          top: 3,
+          left: checked ? 27 : 3,
+          transition: "left 0.25s ease",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
+        }} />
+      </button>
+    </div>
+  );
+
+  const PhoneInput = ({ label, required, value, onChange, placeholder }) => {
+    const digits = value.replace(/\D/g, "");
+    const isInvalid = value && digits.length !== 10;
+    return (
+      <div style={formGroupStyle}>
+        <label style={labelStyle}>{label} {required && <span style={{ color: "#ef4444" }}>*</span>}</label>
+        <div style={{ display: "flex", border: `1px solid ${isInvalid ? "#ef4444" : "#cbd5e1"}`, borderRadius: 8, overflow: "hidden", background: "white" }}>
+          <span style={{ padding: "12px 10px", background: "#f1f5f9", color: "#475569", fontWeight: 600, fontSize: "0.95rem", borderRight: "1px solid #cbd5e1", display: "flex", alignItems: "center" }}>
+            +91
+          </span>
+          <input
+            type="tel"
+            maxLength={10}
+            value={value}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/\D/g, "").slice(0, 10);
+              onChange(raw);
+            }}
+            placeholder={placeholder || "XXXXXXXXXX"}
+            style={{ flex: 1, border: "none", padding: "12px 14px", fontSize: "0.95rem", outline: "none", background: "transparent" }}
+          />
+        </div>
+        {isInvalid && <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>Enter exactly 10 digits</span>}
+      </div>
+    );
+  };
+
+  const TextInput = ({ label, required, value, onChange, placeholder, type = "text" }) => (
+    <div style={formGroupStyle}>
+      <label style={labelStyle}>{label} {required && <span style={{ color: "#ef4444" }}>*</span>}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={inputStyle} />
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", height: "calc(100vh - 140px)", background: "#f1f5f9", borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0" }}>
       {/* LEFT SIDEBAR */}
@@ -268,101 +372,56 @@ export default function VendorManagement({ branches = [], formatMoney }) {
           <div style={{ maxWidth: 900, margin: "0 auto", background: "white", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
             <div style={{ padding: "18px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: "1.3rem", color: "#3b82f6", fontWeight: 600 }}>{mode === "create" ? "Create Vendor" : "Update Vendor"}</h2>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: "0.9rem", color: "#475569", fontWeight: 500 }}>Active</span>
-                <button
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
-                  style={{
-                    width: 44,
-                    height: 24,
-                    borderRadius: 12,
-                    border: "none",
-                    background: form.isActive ? "#3b82f6" : "#cbd5e1",
-                    position: "relative",
-                    cursor: "pointer",
-                    transition: "background 0.2s"
-                  }}
-                >
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: "50%",
-                    background: "white",
-                    position: "absolute",
-                    top: 2,
-                    left: form.isActive ? 22 : 2,
-                    transition: "left 0.2s"
-                  }} />
-                </button>
-              </div>
+              <Toggle
+                checked={form.isActive}
+                onChange={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
+              />
             </div>
 
             <form onSubmit={handleSubmit} style={{ padding: 24 }}>
               {status.error && <div style={{ color: "#ef4444", padding: 12, background: "#fef2f2", borderRadius: 8, fontSize: "0.9rem", marginBottom: 16 }}>{status.error}</div>}
               {status.success && <div style={{ color: "#10b981", padding: 12, background: "#f0fdf4", borderRadius: 8, fontSize: "0.9rem", marginBottom: 16 }}>{status.success}</div>}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: "16px 20px", marginBottom: 24 }}>
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>Vendor Name <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Name*" style={inputStyle} />
-                </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>Firm Name <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input required value={form.firmName} onChange={e => setForm({ ...form, firmName: e.target.value })} placeholder="Firm Name*" style={inputStyle} />
-                </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px 20px", marginBottom: 24 }}>
+                <TextInput label="Vendor Name" required value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="Name*" />
+                <TextInput label="Firm Name" required value={form.firmName} onChange={(v) => setForm({ ...form, firmName: v })} placeholder="Firm Name*" />
 
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>Mobile <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="Mobile Number*" style={inputStyle} />
-                </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>Alternate Mobile</label>
-                  <input value={form.alternateMobile} onChange={e => setForm({ ...form, alternateMobile: e.target.value })} placeholder="Alternate Mobile Number" style={inputStyle} />
-                </div>
+                <PhoneInput
+                  label="Mobile"
+                  required
+                  value={form.phone}
+                  onChange={(v) => setForm({ ...form, phone: v })}
+                  placeholder="XXXXXXXXXX"
+                />
+                <PhoneInput
+                  label="Alternate Mobile"
+                  value={form.alternateMobile}
+                  onChange={(v) => setForm({ ...form, alternateMobile: v })}
+                  placeholder="XXXXXXXXXX"
+                />
 
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>Email <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Email*" style={inputStyle} />
-                </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>GST Number</label>
-                  <input value={form.gstNumber} onChange={e => setForm({ ...form, gstNumber: e.target.value })} placeholder="GstNo" style={inputStyle} />
-                </div>
+                <TextInput label="Email" required type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} placeholder="Email*" />
+                <TextInput label="GST Number" value={form.gstNumber} onChange={(v) => setForm({ ...form, gstNumber: v })} placeholder="GstNo" />
 
-                <div style={{ ...formGroupStyle, gridColumn: "span 8" }}>
+                <div style={{ ...formGroupStyle, gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>Address <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Address*" style={inputStyle} />
-                </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 4" }}>
-                  <label style={labelStyle}>Area</label>
-                  <input value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} placeholder="Area" style={inputStyle} />
+                  <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Address*" style={inputStyle} />
                 </div>
 
-                <div style={{ ...formGroupStyle, gridColumn: "span 4" }}>
-                  <label style={labelStyle}>Landmark</label>
-                  <input value={form.landmark} onChange={e => setForm({ ...form, landmark: e.target.value })} placeholder="Landmark" style={inputStyle} />
-                </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 4" }}>
-                  <label style={labelStyle}>City <span style={{ color: "#ef4444" }}>*</span></label>
-                  <input required value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="City*" style={inputStyle} />
-                </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 4" }}>
-                  <label style={labelStyle}>Pincode</label>
-                  <input value={form.pincode} onChange={e => setForm({ ...form, pincode: e.target.value })} placeholder="Pincode" style={inputStyle} />
-                </div>
+                <TextInput label="Area" value={form.area} onChange={(v) => setForm({ ...form, area: v })} placeholder="Area" />
+                <TextInput label="Landmark" value={form.landmark} onChange={(v) => setForm({ ...form, landmark: v })} placeholder="Landmark" />
 
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
+                <TextInput label="City" required value={form.city} onChange={(v) => setForm({ ...form, city: v })} placeholder="City*" />
+                <TextInput label="Pincode" value={form.pincode} onChange={(v) => setForm({ ...form, pincode: v })} placeholder="Pincode" />
+
+                <div style={formGroupStyle}>
                   <label style={labelStyle}>Branch</label>
-                  <select value={form.branchId} onChange={e => setForm({ ...form, branchId: e.target.value })} style={inputStyle}>
+                  <select value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })} style={inputStyle}>
                     <option value="">Salon wide</option>
                     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                   </select>
                 </div>
-                <div style={{ ...formGroupStyle, gridColumn: "span 6" }}>
-                  <label style={labelStyle}>Notes</label>
-                  <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Notes" style={inputStyle} />
-                </div>
+                <TextInput label="Notes" value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} placeholder="Notes" />
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: "1px solid #e2e8f0", paddingTop: 20 }}>
@@ -417,7 +476,7 @@ export default function VendorManagement({ branches = [], formatMoney }) {
                 </div>
                 <div style={{ width: 120 }}>
                   <label style={labelStyle}>Price</label>
-                  <input type="number" value={itemPrice} onChange={e => setItemPrice(e.target.value)} placeholder="0" style={inputStyle} />
+                  <input type="number" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} placeholder="0" style={inputStyle} />
                 </div>
                 <button
                   onClick={handleAddItem}

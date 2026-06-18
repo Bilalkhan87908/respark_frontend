@@ -9,6 +9,7 @@ const emptyForm = {
   price: 0,
   durationMin: 30,
   branchId: "",
+  categoryId: "",
   description: "",
   taxRate: 0,
   commissionPct: 0,
@@ -31,6 +32,7 @@ const DURATION_OPTIONS = [
 export default function ServicesPage() {
   const [rows, setRows] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedBranch, setSelectedBranch] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState("");
@@ -39,12 +41,14 @@ export default function ServicesPage() {
   const title = useMemo(() => (editingId ? "Update Service" : "Add Service"), [editingId]);
 
   const load = async (branchId = selectedBranch) => {
-    const [servicesResponse, branchesResponse] = await Promise.all([
+    const [servicesResponse, branchesResponse, catsResponse] = await Promise.all([
       api.get("/owner/services", { params: branchId ? { branchId } : {} }),
-      api.get("/owner/branches")
+      api.get("/owner/branches"),
+      api.get("/owner/service-categories")
     ]);
     setRows(servicesResponse.data);
     setBranches(branchesResponse.data);
+    setCategories(catsResponse.data);
     setStatus((current) => ({ ...current, loading: false }));
   };
 
@@ -52,11 +56,13 @@ export default function ServicesPage() {
     let active = true;
     Promise.all([
       api.get("/owner/services"),
-      api.get("/owner/branches")
-    ]).then(([servicesResponse, branchesResponse]) => {
+      api.get("/owner/branches"),
+      api.get("/owner/service-categories")
+    ]).then(([servicesResponse, branchesResponse, catsResponse]) => {
       if (!active) return;
       setRows(servicesResponse.data);
       setBranches(branchesResponse.data);
+      setCategories(catsResponse.data);
       setStatus((current) => ({ ...current, loading: false }));
     });
     return () => {
@@ -69,11 +75,13 @@ export default function ServicesPage() {
     const params = selectedBranch ? { branchId: selectedBranch } : {};
     Promise.all([
       api.get("/owner/services", { params }),
-      api.get("/owner/branches")
-    ]).then(([servicesResponse, branchesResponse]) => {
+      api.get("/owner/branches"),
+      api.get("/owner/service-categories")
+    ]).then(([servicesResponse, branchesResponse, catsResponse]) => {
       if (!active) return;
       setRows(servicesResponse.data);
       setBranches(branchesResponse.data);
+      setCategories(catsResponse.data);
       setStatus((current) => ({ ...current, loading: false }));
     });
     return () => {
@@ -94,6 +102,7 @@ export default function ServicesPage() {
       price: Number(form.price),
       durationMin: Number(form.durationMin),
       branchId: form.branchId || undefined,
+      categoryId: form.categoryId || null,
       taxRate: Number(form.taxRate || 0),
       commissionPct: Number(form.commissionPct || 0)
     };
@@ -125,6 +134,7 @@ export default function ServicesPage() {
       price: Number(service.price || 0),
       durationMin: Number(service.durationMin || 30),
       branchId: service.branchId || "",
+      categoryId: service.categoryId || "",
       description: service.description || "",
       taxRate: Number(service.taxRate || 0),
       commissionPct: Number(service.commissionPct || 0),
@@ -169,6 +179,15 @@ export default function ServicesPage() {
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
+            </select>
+            <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}>
+              <option value="">No Category</option>
+              {(categories || []).flatMap(cat => [
+                <option key={cat.id} value={cat.id} style={{ fontWeight: 700 }}>{cat.name}</option>,
+                ...(cat.children || []).map(sub => (
+                  <option key={sub.id} value={sub.id}>&nbsp;&nbsp;{cat.name} / {sub.name}</option>
+                ))
+              ])}
             </select>
             <input type="number" min="0" placeholder="Tax rate %" value={form.taxRate} onChange={(event) => setForm({ ...form, taxRate: event.target.value })} />
             <input type="number" min="0" placeholder="Commission %" value={form.commissionPct} onChange={(event) => setForm({ ...form, commissionPct: event.target.value })} />

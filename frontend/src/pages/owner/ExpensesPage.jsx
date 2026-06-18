@@ -858,12 +858,6 @@ export default function ExpensesPage() {
                     Expenses Overview
                   </h1>
                 </div>
-                <div style={{ marginBottom: 16, color: "#475569", fontSize: 13 }}>
-                  {autoApproveExpenses
-                    ? "Auto-approve is ON. New expenses are immediately approved and start affecting ledger balances."
-                    : "Auto-approve is OFF. New expenses stay Pending until an approver role approves or rejects them."}
-                </div>
-
                 {/* Filter Row Panel */}
                 <div className="expenses-filter-panel">
                   <div className="filters-group">

@@ -311,15 +311,15 @@ export default function AppointmentsPage() {
     setStatus({ error: "", success: "" });
     const activeItems = form.items.filter((item) => item.serviceId && item.staffUserIds?.length && item.startAt && item.endAt);
     if (!form.customerId) {
-      setStatus({ error: "Guest select karna zaroori hai.", success: "" });
+      setStatus({ error: "Please select a guest.", success: "" });
       return;
     }
     if (!form.branchId) {
-      setStatus({ error: "Branch select karna zaroori hai.", success: "" });
+      setStatus({ error: "Please select a branch.", success: "" });
       return;
     }
     if (!activeItems.length) {
-      setStatus({ error: "Kam az kam aik valid service item add karo.", success: "" });
+      setStatus({ error: "Please add at least one valid service item.", success: "" });
       return;
     }
     setShowConfirmModal(true);

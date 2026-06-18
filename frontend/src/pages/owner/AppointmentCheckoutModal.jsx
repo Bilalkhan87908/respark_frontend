@@ -65,19 +65,17 @@ export default function AppointmentCheckoutModal({ appointment, onClose, onCompl
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [posContext, setPosContext] = useState({ services: [], products: [], serviceCategories: [], productCategories: [], staffUsers: [] });
-  const [posSettings, setPosSettings] = useState(null);
 
   useEffect(() => {
     const fetchContext = async () => {
       try {
-        const [ctxRes, catRes, prodCatRes, pkgRes, memRes, gcRes, settingsRes] = await Promise.all([
+        const [ctxRes, catRes, prodCatRes, pkgRes, memRes, gcRes] = await Promise.all([
           api.get(`/owner/pos/context?branchId=${appointment.branchId || ""}`),
           api.get("/owner/service-categories"),
           api.get("/owner/inventory/categories"),
           api.get("/owner/packages"),
           api.get("/owner/memberships"),
-          api.get("/owner/gift-cards"),
-          api.get("/owner/settings")
+          api.get("/owner/gift-cards")
         ]);
         setPosContext({
           services: ctxRes.data.services || [],
@@ -89,7 +87,6 @@ export default function AppointmentCheckoutModal({ appointment, onClose, onCompl
           memberships: memRes.data || [],
           giftCards: gcRes.data || []
         });
-        setPosSettings(settingsRes.data || null);
       } catch (err) {
         console.error(err);
       }
@@ -351,8 +348,6 @@ export default function AppointmentCheckoutModal({ appointment, onClose, onCompl
     setGcDraft({ staffId: "", price: "", validityDays: "30", purchaseDate: new Date().toISOString().slice(0,10), online: "", offline: "" });
   };
   const { tax, total, balance } = useMemo(() => {
-    const advancedSettings = posSettings?.advancedSettings && typeof posSettings.advancedSettings === "object" ? posSettings.advancedSettings : {};
-    const isInclusive = advancedSettings?.taxMapping?.inclusiveTax === true;
     let t = 0;
     let totalTax = 0;
     form.items.forEach(item => {
@@ -360,17 +355,15 @@ export default function AppointmentCheckoutModal({ appointment, onClose, onCompl
       const price = Number(item.unitPrice || 0);
       const sub = price * qty;
       const taxRate = Number(item.taxPct || 0);
-      const itemTax = isInclusive && taxRate > 0
-        ? (sub * taxRate) / (100 + taxRate)
-        : (sub * taxRate) / 100;
-      t += sub + (isInclusive && taxRate > 0 ? 0 : itemTax);
+      const itemTax = (sub * taxRate) / 100;
+      t += sub + itemTax;
       totalTax += itemTax;
     });
     
     const paid = Number(paymentDraft.online || 0) + Number(paymentDraft.offline || 0);
     const grandTotal = Math.max(0, t - toAmount(invoiceDiscount, 0));
     return { tax: totalTax, total: grandTotal, balance: Math.max(0, grandTotal - paid) };
-  }, [form.items, paymentDraft, invoiceDiscount, posSettings]);
+  }, [form.items, paymentDraft, invoiceDiscount]);
 
   const applyInvoiceDiscount = () => {
     const nextValue = window.prompt("Enter invoice discount amount", String(toAmount(invoiceDiscount, 0)));
@@ -398,7 +391,7 @@ export default function AppointmentCheckoutModal({ appointment, onClose, onCompl
     // Payment amount validation — at least one of Online or Offline must be > 0
     const totalPaid = Number(paymentDraft.online || 0) + Number(paymentDraft.offline || 0);
     if (totalPaid <= 0) {
-      setStatus({ error: "⚠️ Pehle payment amount likho! Online ya Offline mein se koi ek amount zaroor daalo.", success: "" });
+      setStatus({ error: "⚠️ Please enter a payment amount first. Enter an amount in either Online or Offline.", success: "" });
       return;
     }
 
@@ -733,7 +726,7 @@ export default function AppointmentCheckoutModal({ appointment, onClose, onCompl
                   <div style={{ background: bgColor, borderRadius: "8px", border: `1px solid ${borderColor}`, padding: "10px", transition: "all 0.2s" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                       <h4 style={{ margin: 0, color: "#334155", fontSize: "0.75rem", textTransform: "uppercase" }}>Payment Details</h4>
-                      {noPay && <span style={{ fontSize: "0.7rem", color: "#ef4444", fontWeight: 700 }}>⚠️ Amount zaroor daalo!</span>}
+                      {noPay && <span style={{ fontSize: "0.7rem", color: "#ef4444", fontWeight: 700 }}>⚠️ Amount is required!</span>}
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
                       <div>

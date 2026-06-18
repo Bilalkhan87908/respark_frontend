@@ -2547,7 +2547,7 @@ export default function SettingsPage() {
             {!previewRows.length ? (
               <EmptyState
                 title="No gift cards issued yet"
-                message="Gift cards banne ke baad yahin preview me show honge. Naya gift card issue karne ke liye Open Module use karein."
+                message="Gift cards will appear here after creation. Use the Open Module to issue a new gift card."
               />
             ) : null}
           </div>

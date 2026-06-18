@@ -96,8 +96,7 @@ export default function CustomersPage() {
   const [updateForm, setUpdateForm] = useState({ name: "", phone: "", email: "", gender: "", dateOfBirth: "", anniversary: "" });
   const [notes, setNotes] = useState("");
   const [showGiftCardModal, setShowGiftCardModal] = useState(false);
-  const [giftCardForm, setGiftCardForm] = useState({ code: "", title: "", amount: "", validityDays: 30, staffId: "", purchaseDate: new Date().toISOString().slice(0, 10), selectedId: null });
-  const [giftCardSearch, setGiftCardSearch] = useState("");
+  const [giftCardForm, setGiftCardForm] = useState({ code: "", title: "", amount: "", validityDays: 30 });
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [packagePlans, setPackagePlans] = useState([]);
   const [selectedPackage, setSelectedPackage] = useState(null);
@@ -105,6 +104,7 @@ export default function CustomersPage() {
   const [packageSearch, setPackageSearch] = useState("");
   const [showFamilyModal, setShowFamilyModal] = useState(false);
   const [familyForm, setFamilyForm] = useState({ name: "", phone: "", relation: "" });
+  const [familyError, setFamilyError] = useState("");
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [followUpForm, setFollowUpForm] = useState({ date: "", time: "", message: "", type: "call" });
   const actionMenuRef = useRef(null);
@@ -233,15 +233,6 @@ export default function CustomersPage() {
     }
   };
 
-  const fetchGiftCards = async () => {
-    try {
-      const res = await api.get("/owner/gift-cards");
-      setGiftCards(res.data || []);
-    } catch (e) {
-      console.error("Failed to load gift cards", e);
-    }
-  };
-
   const fetchCustomerGiftCards = async (customerId) => {
     try {
       const res = await api.get(`/owner/customers/${customerId}/gift-cards`);
@@ -271,7 +262,7 @@ export default function CustomersPage() {
         staffId: membershipForm.staffId || undefined,
         online: membershipForm.online ? Number(membershipForm.online) : undefined,
         offline: membershipForm.offline ? Number(membershipForm.offline) : undefined,
-        startsAt: membershipForm.purchaseDate ? new Date(membershipForm.purchaseDate).toISOString() : undefined,
+        startsAt: membershipForm.purchaseDate || undefined,
       });
       setShowAssignMembershipModal(false);
       setSelectedPlan(null);
@@ -357,7 +348,7 @@ export default function CustomersPage() {
         validityDays: Number(giftCardForm.validityDays) || 30,
       });
       setShowGiftCardModal(false);
-      setGiftCardForm({ code: "", title: "", amount: "", validityDays: 30, staffId: "", purchaseDate: new Date().toISOString().slice(0, 10), selectedId: null });
+      setGiftCardForm({ code: "", title: "", amount: "", validityDays: 30 });
       fetchCustomerGiftCards(selectedCustomer.id);
     } catch (e) {
       alert("Failed to issue gift card");
@@ -374,7 +365,7 @@ export default function CustomersPage() {
         validityDays: packageForm.validityDays ? Number(packageForm.validityDays) : undefined,
         price: packageForm.price ? Number(packageForm.price) : undefined,
         staffId: packageForm.staffId || undefined,
-        startsAt: packageForm.purchaseDate ? new Date(packageForm.purchaseDate).toISOString() : undefined,
+        startsAt: packageForm.purchaseDate || undefined,
       });
       setShowPackageModal(false);
       setSelectedPackage(null);
@@ -388,21 +379,38 @@ export default function CustomersPage() {
   };
 
   const handleAddFamilyMember = async () => {
-    if (!familyForm.name || !familyForm.phone || !selectedCustomer) return;
+    setFamilyError("");
+    if (!selectedCustomer) {
+      setFamilyError("No customer selected");
+      return;
+    }
+    if (!familyForm.name || familyForm.name.trim().length < 2) {
+      setFamilyError("Name must be at least 2 characters");
+      return;
+    }
+    const phoneDigits = familyForm.phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      setFamilyError("Phone number must be exactly 10 digits");
+      return;
+    }
+    if (!familyForm.relation) {
+      setFamilyError("Please select a relation");
+      return;
+    }
     try {
       await api.post("/owner/customers", {
         phone: familyForm.phone,
-        name: familyForm.name,
+        name: familyForm.name.trim(),
         gender: "female",
         notes: `familyMemberOf:${selectedCustomer.id} relation:${familyForm.relation || "other"}`,
       });
       setShowFamilyModal(false);
       setFamilyForm({ name: "", phone: "", relation: "" });
+      setFamilyError("");
       const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
       setCustomerDetail(res.data);
     } catch (e) {
-      alert("Failed to add family member");
-      console.error(e);
+      setFamilyError(formatApiError(e, "Failed to add family member"));
     }
   };
 
@@ -827,6 +835,7 @@ export default function CustomersPage() {
           .cust-assign-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(37,99,235,0.3); }
           .cust-add-btn { background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-size:0.85rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .15s; }
           .cust-add-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(37,99,235,0.3); }
+          /* Membership modal plan cards */
           /* Advance paymode toggle */
           .cust-paymode-toggle { display:flex; gap:0; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; }
           .cust-paymode-btn { flex:1; padding:8px 16px; border:none; background:#f8fafc; color:#64748b; font-size:0.82rem; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition:all .15s; }
@@ -1329,7 +1338,7 @@ export default function CustomersPage() {
                               </div>
                             ))
                           )}
-                          <button className="cust-assign-btn" onClick={() => { fetchGiftCards(); fetchStaffUsers(); setGiftCardForm({ code: "", title: "", amount: "", validityDays: 30, staffId: "", purchaseDate: new Date().toISOString().slice(0, 10), selectedId: null }); setGiftCardSearch(""); setShowGiftCardModal(true); }}>
+                          <button className="cust-assign-btn" onClick={() => setShowGiftCardModal(true)}>
                             <Gift size={16} /> Issue Gift Card
                           </button>
                         </div>
@@ -1589,7 +1598,7 @@ export default function CustomersPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ position: "relative" }}>
                   <input placeholder="Search For Membership" value={membershipSearch} onChange={(e) => setMembershipSearch(e.target.value)} style={{ padding: "8px 12px", paddingRight: 32, border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", width: 220 }} />
-                  <span style={{ position: "absolute", right: 10, top: 8, color: "#94a3b8" }}>🔍</span>
+                  <span style={{ position: "absolute", right: 10, top: 8, color: "#94a3b8" }}>&#128269;</span>
                 </div>
                 <button onClick={() => setShowAssignMembershipModal(false)} style={{ background: "none", border: "none", fontSize: "1.4rem", cursor: "pointer", color: "#94a3b8" }}>&#x2715;</button>
               </div>
@@ -1642,7 +1651,7 @@ export default function CustomersPage() {
                   <input readOnly value={selectedPlan ? selectedPlan.name : ""} placeholder="Select above" style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", background: "#f8fafc", color: "#94a3b8", boxSizing: "border-box" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Validity</label>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Validity (Days)</label>
                   <input type="number" placeholder="Enter Validity" value={membershipForm.validityDays} onChange={(e) => setMembershipForm((prev) => ({ ...prev, validityDays: e.target.value }))} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
@@ -1732,86 +1741,37 @@ export default function CustomersPage() {
       {/* Issue Gift Card Modal */}
       {showGiftCardModal && (
         <div className="modal-overlay" onClick={() => setShowGiftCardModal(false)}>
-          <div className="modal-content" style={{ width: "min(95vw, 900px)", borderRadius: 16, padding: 0, overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ padding: "18px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9" }}>
-              <div style={{ fontWeight: 700, fontSize: "1.2rem", color: "#0f172a" }}>Issue Gift Card</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ position: "relative" }}>
-                  <input placeholder="Search For Card" value={giftCardSearch} onChange={(e) => setGiftCardSearch(e.target.value)} style={{ padding: "8px 12px", paddingRight: 32, border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", width: 220 }} />
-                  <span style={{ position: "absolute", right: 10, top: 8, color: "#94a3b8" }}>🔍</span>
-                </div>
-                <button onClick={() => setShowGiftCardModal(false)} style={{ background: "none", border: "none", fontSize: "1.4rem", cursor: "pointer", color: "#94a3b8" }}>&#x2715;</button>
+          <div className="modal-content" style={{ width: "min(90vw, 480px)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3>Issue Gift Card</h3>
+                <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "2px" }}>Issue gift card to {selectedCustomer?.name}</div>
               </div>
+              <button className="modal-close" onClick={() => setShowGiftCardModal(false)}><X size={20} /></button>
             </div>
-            <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 24, flex: 1, maxHeight: "70vh", overflowY: "auto" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16, maxHeight: 300, overflowY: "auto", paddingRight: 8 }}>
-                {giftCards.filter((gc) => !giftCardSearch || gc.code?.toLowerCase().includes(giftCardSearch.toLowerCase()) || "gift card".includes(giftCardSearch.toLowerCase())).map((gc) => {
-                  const isSelected = giftCardForm.selectedId === gc.id;
-                  return (
-                    <div key={gc.id} onClick={() => {
-                      setGiftCardForm((prev) => ({
-                        ...prev,
-                        selectedId: gc.id,
-                        title: gc.title || gc.code || "Gift Card",
-                        amount: String(gc.originalAmount || gc.amount || 0),
-                        validityDays: String(gc.validityDays || 30)
-                      }));
-                    }} style={{ background: isSelected ? "#fdf4ff" : "#fdf4ff", border: isSelected ? "2px solid #e879f9" : "1px solid #fdf4ff", borderRadius: 12, padding: 16, cursor: "pointer", transition: "all 0.2s" }}>
-                      <div style={{ fontSize: "0.95rem", fontWeight: 700, color: isSelected ? "#a21caf" : "#3b82f6", marginBottom: 8, textTransform: "uppercase" }}>{gc.code || "GIFT CARD"}</div>
-                      <div style={{ fontSize: "0.85rem", color: "#475569", marginBottom: 4 }}>Fee: {formatMoney(Number(gc.originalAmount || gc.amount || 0))}</div>
-                      <div style={{ fontSize: "0.85rem", color: "#475569", marginBottom: 12 }}>Validity: {gc.validityDays || 30} Days</div>
-                    </div>
-                  );
-                })}
-                <div onClick={() => {
-                  setGiftCardForm((prev) => ({ ...prev, selectedId: "CUSTOM", title: "", amount: "", validityDays: "30" }));
-                }} style={{ background: giftCardForm.selectedId === "CUSTOM" ? "#fdf4ff" : "#f8fafc", border: giftCardForm.selectedId === "CUSTOM" ? "2px solid #e879f9" : "1px solid #e2e8f0", borderRadius: 12, padding: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 100, transition: "all 0.2s" }}>
-                  <div style={{ fontSize: "1rem", fontWeight: 700, color: "#e879f9", textTransform: "uppercase" }}>CUSTOM GIFT CARD</div>
+            <div className="modal-body">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div className="form-group">
+                  <label>Card Code *</label>
+                  <input type="text" value={giftCardForm.code} onChange={(e) => setGiftCardForm(prev => ({ ...prev, code: e.target.value }))} placeholder="e.g. GC-001" />
                 </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 150 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Name</label>
-                  <input readOnly value={giftCardForm.title} placeholder={giftCardForm.selectedId === "CUSTOM" ? "Custom Gift Card" : "Select above"} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", background: "#f8fafc", color: "#94a3b8", boxSizing: "border-box" }} />
+                <div className="form-group">
+                  <label>Title</label>
+                  <input type="text" value={giftCardForm.title} onChange={(e) => setGiftCardForm(prev => ({ ...prev, title: e.target.value }))} placeholder="Gift Card" />
                 </div>
-                <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Validity</label>
-                  <input type="number" placeholder="Enter Validity" value={giftCardForm.validityDays} onChange={(e) => setGiftCardForm((prev) => ({ ...prev, validityDays: e.target.value }))} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
+                <div className="form-group">
+                  <label>Amount *</label>
+                  <input type="number" value={giftCardForm.amount} onChange={(e) => setGiftCardForm(prev => ({ ...prev, amount: e.target.value }))} placeholder="1000" />
                 </div>
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Card Activated From</label>
-                  <input type="date" value={giftCardForm.purchaseDate} onChange={(e) => setGiftCardForm((prev) => ({ ...prev, purchaseDate: e.target.value }))} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Purchase Amount</label>
-                  <input type="number" placeholder="Enter Price" value={giftCardForm.amount} onChange={(e) => setGiftCardForm((prev) => ({ ...prev, amount: e.target.value }))} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
-                </div>
-                <div style={{ flex: 1.2, minWidth: 150 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Staff</label>
-                  <select value={giftCardForm.staffId} onChange={(e) => setGiftCardForm((prev) => ({ ...prev, staffId: e.target.value }))} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }}>
-                    <option value="">Select Staff</option>
-                    {staffUsers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.user?.name || s.name || s.id}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Card Code *</label>
-                  <input type="text" value={giftCardForm.code} onChange={(e) => setGiftCardForm((prev) => ({ ...prev, code: e.target.value }))} placeholder="e.g. GC-001" style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Title</label>
-                  <input type="text" value={giftCardForm.title} onChange={(e) => setGiftCardForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Gift Card" style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
+                <div className="form-group">
+                  <label>Validity (Days)</label>
+                  <input type="number" value={giftCardForm.validityDays} onChange={(e) => setGiftCardForm(prev => ({ ...prev, validityDays: e.target.value }))} />
                 </div>
               </div>
             </div>
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <button onClick={() => setShowGiftCardModal(false)} style={{ padding: "10px 24px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569" }}>Cancel</button>
-              <button onClick={handleIssueGiftCard} disabled={!giftCardForm.code || !giftCardForm.amount} style={{ padding: "10px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: (giftCardForm.code && giftCardForm.amount) ? "pointer" : "not-allowed", opacity: (giftCardForm.code && giftCardForm.amount) ? 1 : 0.6 }}>Issue Card</button>
+            <div className="modal-footer">
+              <button className="crm-btn" onClick={() => setShowGiftCardModal(false)}>Cancel</button>
+              <button className="crm-btn" onClick={handleIssueGiftCard} disabled={!giftCardForm.code || !giftCardForm.amount}>Issue Card</button>
             </div>
           </div>
         </div>
@@ -1826,7 +1786,7 @@ export default function CustomersPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ position: "relative" }}>
                   <input placeholder="Search For Package" value={packageSearch} onChange={(e) => setPackageSearch(e.target.value)} style={{ padding: "8px 12px", paddingRight: 32, border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", width: 220 }} />
-                  <span style={{ position: "absolute", right: 10, top: 8, color: "#94a3b8" }}>🔍</span>
+                  <span style={{ position: "absolute", right: 10, top: 8, color: "#94a3b8" }}>&#128269;</span>
                 </div>
                 <button onClick={() => setShowPackageModal(false)} style={{ background: "none", border: "none", fontSize: "1.4rem", cursor: "pointer", color: "#94a3b8" }}>&#x2715;</button>
               </div>
@@ -1887,7 +1847,7 @@ export default function CustomersPage() {
                   <input readOnly value={selectedPackage ? selectedPackage.name : ""} placeholder="Select above" style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", background: "#f8fafc", color: "#94a3b8", boxSizing: "border-box" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Validity</label>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>Validity (Days)</label>
                   <input type="number" placeholder="Enter Validity" value={packageForm.validityDays} onChange={(e) => setPackageForm((prev) => ({ ...prev, validityDays: e.target.value }))} style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
@@ -1919,27 +1879,46 @@ export default function CustomersPage() {
 
       {/* Add Family Member Modal */}
       {showFamilyModal && (
-        <div className="modal-overlay" onClick={() => setShowFamilyModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowFamilyModal(false); setFamilyError(""); }}>
           <div className="modal-content" style={{ width: "min(90vw, 440px)" }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h3>Add Family Member</h3>
                 <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "2px" }}>Link to {selectedCustomer?.name}</div>
               </div>
-              <button className="modal-close" onClick={() => setShowFamilyModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => { setShowFamilyModal(false); setFamilyError(""); }}><X size={20} /></button>
             </div>
             <div className="modal-body">
+              {familyError && (
+                <div style={{ background: "#fee2e2", color: "#991b1b", padding: "10px 14px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 500, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <AlertCircle size={14} /> {familyError}
+                </div>
+              )}
               <div className="form-group">
                 <label>Name *</label>
-                <input type="text" value={familyForm.name} onChange={(e) => setFamilyForm(prev => ({ ...prev, name: e.target.value }))} placeholder="Family member name" />
+                <input
+                  type="text"
+                  value={familyForm.name}
+                  onChange={(e) => { setFamilyForm(prev => ({ ...prev, name: e.target.value })); setFamilyError(""); }}
+                  placeholder="Family member name"
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.95rem", boxSizing: "border-box" }}
+                />
               </div>
               <div className="form-group">
                 <label>Phone *</label>
-                <input type="tel" value={familyForm.phone} onChange={(e) => setFamilyForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone number" />
+                <IndianPhoneInput
+                  value={familyForm.phone}
+                  onChange={(v) => { setFamilyForm(prev => ({ ...prev, phone: v })); setFamilyError(""); }}
+                  placeholder="9876543210"
+                />
               </div>
               <div className="form-group">
-                <label>Relation</label>
-                <select value={familyForm.relation} onChange={(e) => setFamilyForm(prev => ({ ...prev, relation: e.target.value }))}>
+                <label>Relation *</label>
+                <select
+                  value={familyForm.relation}
+                  onChange={(e) => { setFamilyForm(prev => ({ ...prev, relation: e.target.value })); setFamilyError(""); }}
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.95rem", boxSizing: "border-box" }}
+                >
                   <option value="">Select Relation</option>
                   <option value="spouse">Spouse</option>
                   <option value="parent">Parent</option>
@@ -1950,8 +1929,8 @@ export default function CustomersPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="crm-btn" onClick={() => setShowFamilyModal(false)}>Cancel</button>
-              <button className="crm-btn" onClick={handleAddFamilyMember} disabled={!familyForm.name || !familyForm.phone}>Add Member</button>
+              <button className="crm-btn" onClick={() => { setShowFamilyModal(false); setFamilyError(""); }}>Cancel</button>
+              <button className="crm-btn" onClick={handleAddFamilyMember}>Add Member</button>
             </div>
           </div>
         </div>

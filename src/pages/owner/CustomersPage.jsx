@@ -104,6 +104,7 @@ export default function CustomersPage() {
   const [packageSearch, setPackageSearch] = useState("");
   const [showFamilyModal, setShowFamilyModal] = useState(false);
   const [familyForm, setFamilyForm] = useState({ name: "", phone: "", relation: "" });
+  const [familyError, setFamilyError] = useState("");
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [followUpForm, setFollowUpForm] = useState({ date: "", time: "", message: "", type: "call" });
   const actionMenuRef = useRef(null);
@@ -378,21 +379,38 @@ export default function CustomersPage() {
   };
 
   const handleAddFamilyMember = async () => {
-    if (!familyForm.name || !familyForm.phone || !selectedCustomer) return;
+    setFamilyError("");
+    if (!selectedCustomer) {
+      setFamilyError("No customer selected");
+      return;
+    }
+    if (!familyForm.name || familyForm.name.trim().length < 2) {
+      setFamilyError("Name must be at least 2 characters");
+      return;
+    }
+    const phoneDigits = familyForm.phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      setFamilyError("Phone number must be exactly 10 digits");
+      return;
+    }
+    if (!familyForm.relation) {
+      setFamilyError("Please select a relation");
+      return;
+    }
     try {
       await api.post("/owner/customers", {
         phone: familyForm.phone,
-        name: familyForm.name,
+        name: familyForm.name.trim(),
         gender: "female",
         notes: `familyMemberOf:${selectedCustomer.id} relation:${familyForm.relation || "other"}`,
       });
       setShowFamilyModal(false);
       setFamilyForm({ name: "", phone: "", relation: "" });
+      setFamilyError("");
       const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
       setCustomerDetail(res.data);
     } catch (e) {
-      alert("Failed to add family member");
-      console.error(e);
+      setFamilyError(formatApiError(e, "Failed to add family member"));
     }
   };
 
@@ -1861,27 +1879,46 @@ export default function CustomersPage() {
 
       {/* Add Family Member Modal */}
       {showFamilyModal && (
-        <div className="modal-overlay" onClick={() => setShowFamilyModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowFamilyModal(false); setFamilyError(""); }}>
           <div className="modal-content" style={{ width: "min(90vw, 440px)" }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h3>Add Family Member</h3>
                 <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "2px" }}>Link to {selectedCustomer?.name}</div>
               </div>
-              <button className="modal-close" onClick={() => setShowFamilyModal(false)}><X size={20} /></button>
+              <button className="modal-close" onClick={() => { setShowFamilyModal(false); setFamilyError(""); }}><X size={20} /></button>
             </div>
             <div className="modal-body">
+              {familyError && (
+                <div style={{ background: "#fee2e2", color: "#991b1b", padding: "10px 14px", borderRadius: 8, fontSize: "0.85rem", fontWeight: 500, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <AlertCircle size={14} /> {familyError}
+                </div>
+              )}
               <div className="form-group">
                 <label>Name *</label>
-                <input type="text" value={familyForm.name} onChange={(e) => setFamilyForm(prev => ({ ...prev, name: e.target.value }))} placeholder="Family member name" />
+                <input
+                  type="text"
+                  value={familyForm.name}
+                  onChange={(e) => { setFamilyForm(prev => ({ ...prev, name: e.target.value })); setFamilyError(""); }}
+                  placeholder="Family member name"
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.95rem", boxSizing: "border-box" }}
+                />
               </div>
               <div className="form-group">
                 <label>Phone *</label>
-                <input type="tel" value={familyForm.phone} onChange={(e) => setFamilyForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Phone number" />
+                <IndianPhoneInput
+                  value={familyForm.phone}
+                  onChange={(v) => { setFamilyForm(prev => ({ ...prev, phone: v })); setFamilyError(""); }}
+                  placeholder="9876543210"
+                />
               </div>
               <div className="form-group">
-                <label>Relation</label>
-                <select value={familyForm.relation} onChange={(e) => setFamilyForm(prev => ({ ...prev, relation: e.target.value }))}>
+                <label>Relation *</label>
+                <select
+                  value={familyForm.relation}
+                  onChange={(e) => { setFamilyForm(prev => ({ ...prev, relation: e.target.value })); setFamilyError(""); }}
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: "0.95rem", boxSizing: "border-box" }}
+                >
                   <option value="">Select Relation</option>
                   <option value="spouse">Spouse</option>
                   <option value="parent">Parent</option>
@@ -1892,8 +1929,8 @@ export default function CustomersPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="crm-btn" onClick={() => setShowFamilyModal(false)}>Cancel</button>
-              <button className="crm-btn" onClick={handleAddFamilyMember} disabled={!familyForm.name || !familyForm.phone}>Add Member</button>
+              <button className="crm-btn" onClick={() => { setShowFamilyModal(false); setFamilyError(""); }}>Cancel</button>
+              <button className="crm-btn" onClick={handleAddFamilyMember}>Add Member</button>
             </div>
           </div>
         </div>

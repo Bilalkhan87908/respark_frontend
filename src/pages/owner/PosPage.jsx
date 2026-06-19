@@ -215,6 +215,24 @@ export default function PosPage() {
   const packageLookup = useMemo(() => Object.fromEntries((context.packages || []).map((p) => [p.id, p])), [context.packages]);
   const selectedCoupon = useMemo(() => (context.coupons || []).find((coupon) => coupon.code === form.couponCode) || null, [context.coupons, form.couponCode]);
   const selectedGiftCard = useMemo(() => (context.giftCards || []).find((giftCard) => giftCard.code === form.giftVoucherCode) || null, [context.giftCards, form.giftVoucherCode]);
+  const pkgPaymentTotal = Math.max(0, Number(pkgDraft.price || pkgModalPkg?.price || 0));
+  const pkgPaymentOnline = Math.max(0, Math.min(pkgPaymentTotal, Number(pkgDraft.online || 0)));
+  const pkgPaymentOffline = Math.max(0, Math.min(pkgPaymentTotal - pkgPaymentOnline, Number(pkgDraft.offline || 0)));
+  const pkgPaymentBalance = Math.max(0, Number((pkgPaymentTotal - pkgPaymentOnline - pkgPaymentOffline).toFixed(2)));
+
+  useEffect(() => {
+    if (!showPkgModal) return;
+    setPkgDraft((current) => {
+      const total = Math.max(0, Number(current.price || pkgModalPkg?.price || 0));
+      const online = clampMoneyInput(current.online, total);
+      const offline = clampMoneyInput(current.offline, Math.max(0, total - Number(online || 0)));
+      const balance = Math.max(0, Number((total - Number(online || 0) - Number(offline || 0)).toFixed(2)));
+      if (String(current.online || "") === String(online || "") && String(current.offline || "") === String(offline || "") && String(current.balance || "") === String(balance)) {
+        return current;
+      }
+      return { ...current, online, offline, balance: String(balance) };
+    });
+  }, [pkgDraft.price, pkgModalPkg?.price, showPkgModal]);
 
   useEffect(() => {
     if (context.branches?.length && !form.branchId) {
@@ -377,6 +395,9 @@ export default function PosPage() {
   const handleAddPkgToCart = () => {
     const pkg = pkgModalPkg;
     const price = Number(pkgDraft.price || pkg?.price || 0);
+    const online = clampMoneyInput(pkgDraft.online, price);
+    const offline = clampMoneyInput(pkgDraft.offline, Math.max(0, price - Number(online || 0)));
+    const balance = Math.max(0, Number((price - Number(online || 0) - Number(offline || 0)).toFixed(2)));
     setForm(c => {
       const activeItems = c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId);
       return {
@@ -396,6 +417,12 @@ export default function PosPage() {
           purchaseDate: pkgDraft.purchaseDate || new Date().toISOString().slice(0, 10),
           customServices: pkgDraft.customServices || [],
           customProducts: pkgDraft.customProducts || [],
+          paymentBreakup: {
+            balance,
+            online: Number(online || 0),
+            offline: Number(offline || 0)
+          },
+          remark: pkgDraft.remark || "",
           isCustom: pkg?.id === "CUSTOM" || !pkg
         }]
       };
@@ -1398,19 +1425,19 @@ export default function PosPage() {
                       <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Balance</label>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                         <span style={{ fontSize:"1.2rem" }}>💵</span>
-                        <input type="number" placeholder="0.0" value={pkgDraft.balance} onChange={e=>setPkgDraft(d=>({...d,balance:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                        <input type="number" placeholder="0.0" value={pkgPaymentBalance.toFixed(2)} readOnly style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box", background:"#f8fafc" }} />
                       </div>
                     </div>
                     <div style={{ flex:1, minWidth:120 }}>
                       <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Online</label>
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                         <span style={{ fontSize:"1.2rem" }}>📱</span>
-                        <input type="number" placeholder="0.0" value={pkgDraft.online} onChange={e=>setPkgDraft(d=>({...d,online:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                        <input type="number" min="0" step="0.01" inputMode="decimal" max={pkgPaymentTotal} placeholder="0.0" value={pkgDraft.online} onChange={e=>setPkgDraft(d=>{ const total = Math.max(0, Number(d.price || pkgModalPkg?.price || 0)); const offline = Math.max(0, Number(d.offline || 0)); const online = clampMoneyInput(e.target.value, Math.max(0, total - offline)); const nextBalance = Math.max(0, Number((total - Number(online || 0) - offline).toFixed(2))); return { ...d, online, balance: String(nextBalance) }; })} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
                       </div>
                     </div>
                     <div style={{ flex:1, minWidth:120 }}>
                       <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Offline</label>
-                      <input type="number" placeholder="0.0" value={pkgDraft.offline} onChange={e=>setPkgDraft(d=>({...d,offline:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                      <input type="number" min="0" step="0.01" inputMode="decimal" max={Math.max(0, pkgPaymentTotal - pkgPaymentOnline)} placeholder="0.0" value={pkgDraft.offline} onChange={e=>setPkgDraft(d=>{ const total = Math.max(0, Number(d.price || pkgModalPkg?.price || 0)); const online = Math.max(0, Number(d.online || 0)); const offline = clampMoneyInput(e.target.value, Math.max(0, total - online)); const nextBalance = Math.max(0, Number((total - online - Number(offline || 0)).toFixed(2))); return { ...d, offline, balance: String(nextBalance) }; })} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
                     </div>
                   </div>
                 </div>

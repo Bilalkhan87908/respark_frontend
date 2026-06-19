@@ -352,6 +352,10 @@ export default function PosPage() {
   const handleCreatePkgInvoice = async () => {
     const pkg = pkgModalPkg;
     const isCustom = pkg?.id === "CUSTOM";
+    if (!pkgDraft.staffId) {
+      alert("Please select a staff member before creating the package invoice.");
+      return;
+    }
     setForm((current) => ({
       ...current,
       items: [
@@ -1236,6 +1240,38 @@ export default function PosPage() {
             </div>
             
             <div style={{ padding:"24px", display:"flex", flexDirection:"column", gap:24, flex:1 }}>
+              {/* Package Meta */}
+              <div style={{ display:"flex", gap:16, alignItems:"flex-end", flexWrap:"wrap", padding:"16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12 }}>
+                <div style={{ flex:1, minWidth:150 }}>
+                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Name</label>
+                  <input readOnly value={pkgModalPkg ? (pkgModalPkg.id==="CUSTOM" ? "CUSTOM" : pkgModalPkg.name) : ""} placeholder="Select above" style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", background:"#f8fafc", color:"#94a3b8", boxSizing:"border-box" }} />
+                </div>
+                <div style={{ flex:1, minWidth:120 }}>
+                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Validity</label>
+                  <input type="number" placeholder="Enter Validity" value={pkgDraft.validityDays} onChange={e=>setPkgDraft(d=>({...d,validityDays:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                </div>
+                <div style={{ flex:1, minWidth:120 }}>
+                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Price</label>
+                  <input type="number" placeholder="Enter Price" value={pkgDraft.price} onChange={e=>setPkgDraft(d=>({...d,price:e.target.value}))} readOnly={pkgModalPkg?.id !== "CUSTOM"} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box", background: pkgModalPkg?.id !== "CUSTOM" ? "#f8fafc" : "#fff" }} />
+                </div>
+                <div style={{ flex:1.2, minWidth:180 }}>
+                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Staff <span style={{ color:"#dc2626" }}>*</span></label>
+                  <select value={pkgDraft.staffId} onChange={e=>setPkgDraft(d=>({...d,staffId:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }}>
+                    <option value="">Select Staff</option>
+                    {(context.staffUsers || []).map(s => <option key={s.id} value={s.id}>{s.user?.name || s.user?.email || s.id}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex:1, minWidth:140 }}>
+                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Purchase date</label>
+                  <input type="date" value={pkgDraft.purchaseDate} onChange={e=>setPkgDraft(d=>({...d,purchaseDate:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                </div>
+                {!pkgDraft.staffId && (
+                  <div style={{ width:"100%", color:"#dc2626", fontSize:"0.82rem", fontWeight:600 }}>
+                    Staff selection is required before creating the package invoice.
+                  </div>
+                )}
+              </div>
+
               {/* Package Grid */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:16, maxHeight:300, overflowY:"auto", paddingRight:8 }}>
                 {(context.packages || []).filter(p => p.name.toLowerCase().includes(pkgSearch.toLowerCase())).map(pkg => {
@@ -1345,32 +1381,6 @@ export default function PosPage() {
                   <div><span style={{ color:"#64748b", fontWeight:500 }}>Total Product Amount:</span> <span style={{ fontWeight:700, color:"#0f172a" }}>{formatMoney(pkgDraft.customProducts.reduce((acc,p)=>acc+(Number(p.price||0)*Number(p.qty||1)),0))}</span></div>
                 </div>
 
-                {/* The Meta Form (Name, Validity, Price, Staff, Date) */}
-                <div style={{ display:"flex", gap:16, alignItems:"flex-end", marginTop:16, flexWrap:"wrap" }}>
-                  <div style={{ flex:1, minWidth:150 }}>
-                    <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Name</label>
-                    <input readOnly value={pkgModalPkg ? (pkgModalPkg.id==="CUSTOM" ? "CUSTOM" : pkgModalPkg.name) : ""} placeholder="Select above" style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", background:"#f8fafc", color:"#94a3b8", boxSizing:"border-box" }} />
-                  </div>
-                  <div style={{ flex:1, minWidth:120 }}>
-                    <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Validity</label>
-                    <input type="number" placeholder="Enter Validity" value={pkgDraft.validityDays} onChange={e=>setPkgDraft(d=>({...d,validityDays:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                  </div>
-                  <div style={{ flex:1, minWidth:120 }}>
-                    <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Price</label>
-                    <input type="number" placeholder="Enter Price" value={pkgDraft.price} onChange={e=>setPkgDraft(d=>({...d,price:e.target.value}))} readOnly={pkgModalPkg?.id !== "CUSTOM"} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box", background: pkgModalPkg?.id !== "CUSTOM" ? "#f8fafc" : "#fff" }} />
-                  </div>
-                  <div style={{ flex:1.2, minWidth:150 }}>
-                    <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Staff</label>
-                    <select value={pkgDraft.staffId} onChange={e=>setPkgDraft(d=>({...d,staffId:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }}>
-                      <option value="">Select Staff</option>
-                      {(context.staffUsers || []).map(s => <option key={s.id} value={s.id}>{s.user?.name || s.user?.email || s.id}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ flex:1, minWidth:140 }}>
-                    <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Purchase date</label>
-                    <input type="date" value={pkgDraft.purchaseDate} onChange={e=>setPkgDraft(d=>({...d,purchaseDate:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                  </div>
-                </div>
               </div>
             </div>
 

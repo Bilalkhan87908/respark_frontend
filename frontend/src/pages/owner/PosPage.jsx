@@ -24,6 +24,18 @@ const toAmount = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+const clampMoneyInput = (value, max = Number.POSITIVE_INFINITY) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const cleaned = raw.replace(/[^\d.]/g, "");
+  if (!cleaned) return "";
+  const [whole = "", ...fractionParts] = cleaned.split(".");
+  const normalized = fractionParts.length ? `${whole}.${fractionParts.join("")}` : whole;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return "";
+  const capped = Number.isFinite(max) ? Math.min(parsed, Math.max(0, max)) : parsed;
+  return String(Number(capped.toFixed(2)));
+};
 const genderMatches = (serviceGender, selectedGender) => {
   if (selectedGender === "ALL") return true;
   const gender = normalizeGender(serviceGender);
@@ -37,7 +49,7 @@ export default function PosPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   const [tab, setTab] = useState("billing");
-  const [context, setContext] = useState({ customers: [], branches: [], services: [], staffUsers: [], products: [], memberships: [], packages: [], coupons: [], giftCards: [], customerProfile: null, settings: null });
+  const [context, setContext] = useState({ customers: [], branches: [], services: [], staffUsers: [], products: [], memberships: [], packages: [], customerPackages: [], coupons: [], giftCards: [], customerProfile: null, settings: null });
   const [status, setStatus] = useState({ error: "", success: "" });
   const [result, setResult] = useState(null);
   const [dayClosing, setDayClosing] = useState(null);
@@ -62,10 +74,11 @@ export default function PosPage() {
 
   const [showPkgModal, setShowPkgModal] = useState(false);
   const [pkgModalPkg, setPkgModalPkg] = useState(null);
-  const [pkgDraft, setPkgDraft] = useState({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0, 10), customServices: [], customProducts: [] });
+  const [pkgDraft, setPkgDraft] = useState({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0, 10), customServices: [], customProducts: [], balance: "", online: "", offline: "", remark: "" });
   const [pkgSearch, setPkgSearch] = useState("");
   const [pkgServiceSearch, setPkgServiceSearch] = useState("");
   const [pkgProductSearch, setPkgProductSearch] = useState("");
+  const [showPkgDetailModal, setShowPkgDetailModal] = useState(null);
   const [showMemModal, setShowMemModal] = useState(false);
   const [memModalMem, setMemModalMem] = useState(null);
   const [memDraft, setMemDraft] = useState({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0, 10), customServices: [] });
@@ -202,6 +215,24 @@ export default function PosPage() {
   const packageLookup = useMemo(() => Object.fromEntries((context.packages || []).map((p) => [p.id, p])), [context.packages]);
   const selectedCoupon = useMemo(() => (context.coupons || []).find((coupon) => coupon.code === form.couponCode) || null, [context.coupons, form.couponCode]);
   const selectedGiftCard = useMemo(() => (context.giftCards || []).find((giftCard) => giftCard.code === form.giftVoucherCode) || null, [context.giftCards, form.giftVoucherCode]);
+  const pkgPaymentTotal = Math.max(0, Number(pkgDraft.price || pkgModalPkg?.price || 0));
+  const pkgPaymentOnline = Math.max(0, Math.min(pkgPaymentTotal, Number(pkgDraft.online || 0)));
+  const pkgPaymentOffline = Math.max(0, Math.min(pkgPaymentTotal - pkgPaymentOnline, Number(pkgDraft.offline || 0)));
+  const pkgPaymentBalance = Math.max(0, Number((pkgPaymentTotal - pkgPaymentOnline - pkgPaymentOffline).toFixed(2)));
+
+  useEffect(() => {
+    if (!showPkgModal) return;
+    setPkgDraft((current) => {
+      const total = Math.max(0, Number(current.price || pkgModalPkg?.price || 0));
+      const online = clampMoneyInput(current.online, total);
+      const offline = clampMoneyInput(current.offline, Math.max(0, total - Number(online || 0)));
+      const balance = Math.max(0, Number((total - Number(online || 0) - Number(offline || 0)).toFixed(2)));
+      if (String(current.online || "") === String(online || "") && String(current.offline || "") === String(offline || "") && String(current.balance || "") === String(balance)) {
+        return current;
+      }
+      return { ...current, online, offline, balance: String(balance) };
+    });
+  }, [pkgDraft.price, pkgModalPkg?.price, showPkgModal]);
 
   useEffect(() => {
     if (context.branches?.length && !form.branchId) {
@@ -334,55 +365,69 @@ export default function PosPage() {
     setShowMemModal(true);
   };
 
-  const addQuickPackage = (p) => {
-    setPkgModalPkg(p);
-    setPkgDraft({
-      staffId: "",
-      price: String(p.price || ""),
-      validityDays: String(p.validityDays || "30"),
-      purchaseDate: new Date().toISOString().slice(0, 10),
-      customServices: (p.services || []).map(s => ({ id: s.service?.id || s.serviceId || "", name: s.service?.name || "", qty: s.sessions || 1 })),
-      customProducts: []
-    });
-    setPkgServiceSearch("");
-    setShowPkgModal(true);
-  };
-
-  
-  const handleCreatePkgInvoice = async () => {
-    const pkg = pkgModalPkg;
-    const isCustom = pkg?.id === "CUSTOM";
-    if (!pkgDraft.staffId) {
-      alert("Please select a staff member before creating the package invoice.");
-      return;
-    }
-    setForm((current) => ({
-      ...current,
-      items: [
-        ...current.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId),
-        {
+  const addQuickPackage = (pkg) => {
+    setForm(c => {
+      const activeItems = c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId);
+      return {
+        ...c,
+        items: [...activeItems, {
           itemType: "PACKAGE",
-          packageId: isCustom ? "CUSTOM" : (pkg?.id || ""),
-          name: pkg?.name || "Package",
-          staffUserId: pkgDraft.staffId || "",
-          staffUserSalonId: pkgDraft.staffId || "",
+          packageId: pkg.id,
+          name: pkg.name,
+          staffUserSalonId: "",
           qty: 1,
-          unitPrice: Number(pkgDraft.price || 0),
-          originalUnitPrice: Number(pkgDraft.price || 0),
+          unitPrice: Number(pkg.price || 0),
+          originalUnitPrice: Number(pkg.price || 0),
           discountPct: 0,
           discountAmt: 0,
           taxPct: 0,
-          validityDays: Number(pkgDraft.validityDays || 30),
-          purchaseDate: pkgDraft.purchaseDate,
-          customServices: pkgDraft.customServices,
-          customProducts: pkgDraft.customProducts,
-          isCustom
-        }
-      ]
-    }));
+          validityDays: Number(pkg.validityDays || 30),
+          purchaseDate: new Date().toISOString().slice(0, 10),
+          customServices: (pkg.services || []).map(s => ({ id: s.service?.id || s.serviceId || "", name: s.service?.name || "", qty: s.sessions || 1 })),
+          customProducts: [],
+          isCustom: false
+        }]
+      };
+    });
+  };
+
+  
+  const handleAddPkgToCart = () => {
+    const pkg = pkgModalPkg;
+    const price = Number(pkgDraft.price || pkg?.price || 0);
+    const online = clampMoneyInput(pkgDraft.online, price);
+    const offline = clampMoneyInput(pkgDraft.offline, Math.max(0, price - Number(online || 0)));
+    const balance = Math.max(0, Number((price - Number(online || 0) - Number(offline || 0)).toFixed(2)));
+    setForm(c => {
+      const activeItems = c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId);
+      return {
+        ...c,
+        items: [...activeItems, {
+          itemType: "PACKAGE",
+          packageId: pkg?.id === "CUSTOM" ? "CUSTOM" : pkg?.id || "CUSTOM",
+          name: pkg?.name || "Custom Package",
+          staffUserSalonId: pkgDraft.staffId || "",
+          qty: 1,
+          unitPrice: price,
+          originalUnitPrice: price,
+          discountPct: 0,
+          discountAmt: 0,
+          taxPct: 0,
+          validityDays: Number(pkgDraft.validityDays || pkg?.validityDays || 30),
+          purchaseDate: pkgDraft.purchaseDate || new Date().toISOString().slice(0, 10),
+          customServices: pkgDraft.customServices || [],
+          customProducts: pkgDraft.customProducts || [],
+          paymentBreakup: {
+            balance,
+            online: Number(online || 0),
+            offline: Number(offline || 0)
+          },
+          remark: pkgDraft.remark || "",
+          isCustom: pkg?.id === "CUSTOM" || !pkg
+        }]
+      };
+    });
     setShowPkgModal(false);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await submitInvoice("complete");
   };
 
   const handleAddMemToCart = () => {
@@ -393,7 +438,6 @@ export default function PosPage() {
         itemType: "MEMBERSHIP",
         membershipPlanId: mem?.id || "",
         name: mem?.name || "Membership",
-        staffUserId: memDraft.staffId || "",
         staffUserSalonId: memDraft.staffId || "",
         qty: 1,
         unitPrice: Number(memDraft.price || 0),
@@ -408,6 +452,29 @@ export default function PosPage() {
       }]
     }));
     setShowMemModal(false);
+  };
+
+  const handleAddGcToCart = () => {
+    const gc = gcModalGc;
+    setForm(c => ({
+      ...c,
+      items: [...c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId), {
+        itemType: "GIFT_CARD",
+        giftCardId: gc?.id || "",
+        name: gc?.name || "Gift Card",
+        staffUserSalonId: gcDraft.staffId || "",
+        qty: 1,
+        unitPrice: Number(gcDraft.price || 0),
+        originalUnitPrice: Number(gcDraft.price || 0),
+        discountPct: 0,
+        discountAmt: 0,
+        taxPct: 0,
+        validityDays: Number(gcDraft.validityDays || 30),
+        purchaseDate: gcDraft.purchaseDate,
+        isCustom: true
+      }]
+    }));
+    setShowGcModal(false);
   };
 
   const getCatalogBasePrice = useCallback((item) => {
@@ -646,7 +713,7 @@ export default function PosPage() {
         <div className="pos-topbar-right">
           <button className={`pos-top-tab ${tab === "billing" ? "active" : ""}`} onClick={() => setTab("billing")}>Add Service</button>
           <button className={`pos-top-tab ${tab === "products" ? "active" : ""}`} onClick={() => setTab("products")}>Add Product</button>
-          <button className="pos-top-tab" onClick={() => { setPkgModalPkg(null); setPkgDraft({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0,10), customServices: [], customProducts: [] }); setShowPkgModal(true); }}>Add Package</button>
+          <button className="pos-top-tab" onClick={() => { setPkgModalPkg(null); setPkgDraft({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0,10), customServices: [], customProducts: [], balance: "", online: "", offline: "", remark: "" }); setShowPkgModal(true); }}>Add Package</button>
           <button className="pos-top-tab" onClick={() => { setMemModalMem(null); setMemDraft({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0,10), customServices: [] }); setShowMemModal(true); }}>Add Membership</button>
         </div>
       </div>
@@ -821,7 +888,8 @@ export default function PosPage() {
               if(!customer) return null;
               
               const activeMembership = customer.memberships?.find(m => String(m.status) === 'ACTIVE' && new Date(m.endsAt) > new Date());
-              const activePackage = customer.packages?.find(p => String(p.status) === 'ACTIVE' && new Date(p.endsAt) > new Date());
+              const activePackage = (context.customerPackages || []).find(p => p.customerId === customer.id && String(p.status) === 'ACTIVE' && new Date(p.endsAt) > new Date());
+              const cartPackage = form.items.find(i => i.itemType === 'PACKAGE');
               const dueBal = customer.invoices?.filter(inv => inv.status === 'UNPAID' || inv.status === 'PARTIAL').reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0) || 0;
               
               const dob = customer.dateOfBirth ? new Date(customer.dateOfBirth).toLocaleDateString("en-GB", {day:"2-digit", month:"short"}) : "NA";
@@ -845,7 +913,7 @@ export default function PosPage() {
                     </div>
                     <div style={{display: "flex", flexDirection: "column", gap: "8px"}}>
                       <div><strong style={{color:"#0f172a"}}>Adv :</strong> {activeMembership?.remainingWalletValue ? formatMoney(Number(activeMembership.remainingWalletValue).toFixed(0)) : "NA"}</div>
-                      <div><strong style={{color:"#0f172a"}}>Package :</strong> {activePackage?.package?.name || "NA"}</div>
+                      <div><strong style={{color:"#0f172a"}}>Package :</strong> {activePackage ? <span style={{color:"#2563eb", cursor:"pointer"}} onClick={() => setShowPkgDetailModal(activePackage)}>{activePackage?.package?.name || "NA"}</span> : cartPackage ? <span style={{color:"#10b981", fontWeight:"600"}}>{cartPackage.name} (In Cart)</span> : "NA"} {activePackage && <span title="Package Details" onClick={() => setShowPkgDetailModal(activePackage)} style={{display:"inline-flex", alignItems:"center", justifyContent:"center", width:18, height:18, borderRadius:"50%", background:"#e2e8f0", color:"#475569", fontSize:11, fontWeight:700, cursor:"pointer", marginLeft:4, verticalAlign:"middle"}}>&#9432;</span>}</div>
                     </div>
                     <div style={{display: "flex", flexDirection: "column", gap: "8px"}}>
                       <div><strong style={{color:"#0f172a"}}>Membership :</strong> {activeMembership?.membershipPlan?.name || "NA"}</div>
@@ -1240,38 +1308,6 @@ export default function PosPage() {
             </div>
             
             <div style={{ padding:"24px", display:"flex", flexDirection:"column", gap:24, flex:1 }}>
-              {/* Package Meta */}
-              <div style={{ display:"flex", gap:16, alignItems:"flex-end", flexWrap:"wrap", padding:"16px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12 }}>
-                <div style={{ flex:1, minWidth:150 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Name</label>
-                  <input readOnly value={pkgModalPkg ? (pkgModalPkg.id==="CUSTOM" ? "CUSTOM" : pkgModalPkg.name) : ""} placeholder="Select above" style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", background:"#f8fafc", color:"#94a3b8", boxSizing:"border-box" }} />
-                </div>
-                <div style={{ flex:1, minWidth:120 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Validity</label>
-                  <input type="number" placeholder="Enter Validity" value={pkgDraft.validityDays} onChange={e=>setPkgDraft(d=>({...d,validityDays:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                </div>
-                <div style={{ flex:1, minWidth:120 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Price</label>
-                  <input type="number" placeholder="Enter Price" value={pkgDraft.price} onChange={e=>setPkgDraft(d=>({...d,price:e.target.value}))} readOnly={pkgModalPkg?.id !== "CUSTOM"} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box", background: pkgModalPkg?.id !== "CUSTOM" ? "#f8fafc" : "#fff" }} />
-                </div>
-                <div style={{ flex:1.2, minWidth:180 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Staff <span style={{ color:"#dc2626" }}>*</span></label>
-                  <select value={pkgDraft.staffId} onChange={e=>setPkgDraft(d=>({...d,staffId:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }}>
-                    <option value="">Select Staff</option>
-                    {(context.staffUsers || []).map(s => <option key={s.id} value={s.id}>{s.user?.name || s.user?.email || s.id}</option>)}
-                  </select>
-                </div>
-                <div style={{ flex:1, minWidth:140 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Purchase date</label>
-                  <input type="date" value={pkgDraft.purchaseDate} onChange={e=>setPkgDraft(d=>({...d,purchaseDate:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                </div>
-                {!pkgDraft.staffId && (
-                  <div style={{ width:"100%", color:"#dc2626", fontSize:"0.82rem", fontWeight:600 }}>
-                    Staff selection is required before creating the package invoice.
-                  </div>
-                )}
-              </div>
-
               {/* Package Grid */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:16, maxHeight:300, overflowY:"auto", paddingRight:8 }}>
                 {(context.packages || []).filter(p => p.name.toLowerCase().includes(pkgSearch.toLowerCase())).map(pkg => {
@@ -1279,7 +1315,7 @@ export default function PosPage() {
                   return (
                     <div key={pkg.id} onClick={() => {
                       setPkgModalPkg(pkg);
-                      setPkgDraft({ staffId: "", price: String(pkg.price||0), validityDays: String(pkg.validityDays||30), purchaseDate: new Date().toISOString().slice(0,10), customServices: (pkg.services||[]).map(s=>({id:s.service?.id||s.serviceId,name:s.service?.name, price: s.service?.salesPrice || s.service?.price || 0, qty:s.sessions||1})), customProducts: [] });
+                      setPkgDraft({ staffId: "", price: String(pkg.price||0), validityDays: String(pkg.validityDays||30), purchaseDate: new Date().toISOString().slice(0,10), customServices: (pkg.services||[]).map(s=>({id:s.service?.id||s.serviceId,name:s.service?.name, price: s.service?.salesPrice || s.service?.price || 0, qty:s.sessions||1})), customProducts: [], balance: "", online: "", offline: "", remark: "" });
                     }} style={{ background: isSelected?"#fdf4ff":"#f8fafc", border: isSelected?"2px solid #e879f9":"1px solid #e2e8f0", borderRadius:12, padding:16, cursor:"pointer", transition:"all 0.2s" }}>
                       <div style={{ fontSize:"0.95rem", fontWeight:700, color:"#4a044e", marginBottom:8, textTransform:"uppercase" }}>{pkg.name}</div>
                       <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Fee: {formatMoney(Number(pkg.price||0))}</div>
@@ -1298,7 +1334,7 @@ export default function PosPage() {
                 })}
                 <div onClick={() => {
                   setPkgModalPkg({ id: "CUSTOM", name: "CUSTOM PACKAGE" });
-                  setPkgDraft({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0,10), customServices: [], customProducts: [] });
+                  setPkgDraft({ staffId: "", price: "", validityDays: "", purchaseDate: new Date().toISOString().slice(0,10), customServices: [], customProducts: [], balance: "", online: "", offline: "", remark: "" });
                 }} style={{ background: pkgModalPkg?.id==="CUSTOM"?"#eff6ff":"#f8fafc", border: pkgModalPkg?.id==="CUSTOM"?"2px solid #3b82f6":"1px solid #e2e8f0", borderRadius:12, padding:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", minHeight:150, transition:"all 0.2s" }}>
                   <div style={{ fontSize:"1rem", fontWeight:700, color:"#2563eb", textTransform:"uppercase" }}>CUSTOM PACKAGE</div>
                 </div>
@@ -1376,17 +1412,95 @@ export default function PosPage() {
 
                 {/* Totals */}
                 <div style={{ display:"flex", gap:24, alignItems:"center", marginTop:8, padding:"10px 16px", background:"#f8fafc", borderRadius:8, fontSize:"0.9rem" }}>
-                  <div><span style={{ color:"#64748b", fontWeight:500 }}>Total Amount:</span> <span style={{ fontWeight:700, color:"#0f172a" }}>{formatMoney(Number(pkgDraft.price || 0))}</span></div>
+                  <div><span style={{ color:"#64748b", fontWeight:500 }}>Total Amount:</span> <span style={{ fontWeight:700, color:"#0f172a" }}>{formatMoney(Number(pkgDraft.price || pkgModalPkg?.price || 0))}</span></div>
                   <div><span style={{ color:"#64748b", fontWeight:500 }}>Total Service Amount:</span> <span style={{ fontWeight:700, color:"#0f172a" }}>{formatMoney(pkgDraft.customServices.reduce((acc,s)=>acc+(Number(s.price||0)*Number(s.qty||1)),0))}</span></div>
                   <div><span style={{ color:"#64748b", fontWeight:500 }}>Total Product Amount:</span> <span style={{ fontWeight:700, color:"#0f172a" }}>{formatMoney(pkgDraft.customProducts.reduce((acc,p)=>acc+(Number(p.price||0)*Number(p.qty||1)),0))}</span></div>
                 </div>
 
+                {/* Payment Details */}
+                <div style={{ marginTop:8 }}>
+                  <div style={{ fontWeight:600, color:"#0f172a", fontSize:"0.95rem", marginBottom:12 }}>Payment Details:</div>
+                  <div style={{ display:"flex", gap:24, alignItems:"flex-start", flexWrap:"wrap" }}>
+                    <div style={{ flex:1, minWidth:120 }}>
+                      <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Balance</label>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:"1.2rem" }}>💵</span>
+                        <input type="number" placeholder="0.0" value={pkgPaymentBalance.toFixed(2)} readOnly style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box", background:"#f8fafc" }} />
+                      </div>
+                    </div>
+                    <div style={{ flex:1, minWidth:120 }}>
+                      <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Online</label>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:"1.2rem" }}>📱</span>
+                        <input type="number" min="0" step="0.01" inputMode="decimal" max={pkgPaymentTotal} placeholder="0.0" value={pkgDraft.online} onChange={e=>setPkgDraft(d=>{ const total = Math.max(0, Number(d.price || pkgModalPkg?.price || 0)); const offline = Math.max(0, Number(d.offline || 0)); const online = clampMoneyInput(e.target.value, Math.max(0, total - offline)); const nextBalance = Math.max(0, Number((total - Number(online || 0) - offline).toFixed(2))); return { ...d, online, balance: String(nextBalance) }; })} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                      </div>
+                    </div>
+                    <div style={{ flex:1, minWidth:120 }}>
+                      <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Offline</label>
+                      <input type="number" min="0" step="0.01" inputMode="decimal" max={Math.max(0, pkgPaymentTotal - pkgPaymentOnline)} placeholder="0.0" value={pkgDraft.offline} onChange={e=>setPkgDraft(d=>{ const total = Math.max(0, Number(d.price || pkgModalPkg?.price || 0)); const online = Math.max(0, Number(d.online || 0)); const offline = clampMoneyInput(e.target.value, Math.max(0, total - online)); const nextBalance = Math.max(0, Number((total - online - Number(offline || 0)).toFixed(2))); return { ...d, offline, balance: String(nextBalance) }; })} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remark */}
+                <div style={{ marginTop:8 }}>
+                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Remark:</label>
+                  <textarea placeholder="Add remark..." value={pkgDraft.remark} onChange={e=>setPkgDraft(d=>({...d,remark:e.target.value}))} rows={2} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box", resize:"vertical" }} />
+                </div>
               </div>
             </div>
 
             <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9", display:"flex", justifyContent:"flex-end", gap:12 }}>
               <button onClick={() => setShowPkgModal(false)} style={{ padding:"10px 24px", background:"#fff", border:"1px solid #cbd5e1", borderRadius:8, fontWeight:600, cursor:"pointer", color:"#475569" }}>Cancel</button>
-              <button onClick={handleCreatePkgInvoice} disabled={!pkgModalPkg || !pkgDraft.staffId} style={{ padding:"10px 24px", background:"#2563eb", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:(pkgModalPkg && pkgDraft.staffId)?"pointer":"not-allowed", opacity:(pkgModalPkg && pkgDraft.staffId)?1:0.6 }}>Create Package</button>
+              <button onClick={handleAddPkgToCart} disabled={!pkgModalPkg} style={{ padding:"10px 24px", background:"#2563eb", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:pkgModalPkg?"pointer":"not-allowed", opacity:pkgModalPkg?1:0.6 }}>Add Package</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======= PACKAGE DETAILS MODAL ======= */}
+      {showPkgDetailModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.55)", zIndex:9500, display:"flex", alignItems:"center", justifyContent:"center" }} onClick={() => setShowPkgDetailModal(null)}>
+          <div style={{ background:"#fff", borderRadius:16, width:"min(95vw,500px)", maxHeight:"80vh", overflowY:"auto", boxShadow:"0 25px 50px -12px rgba(0,0,0,0.25)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding:"18px 24px", display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:"1px solid #f1f5f9" }}>
+              <div style={{ fontWeight:700, fontSize:"1.2rem", color:"#0f172a", textAlign:"center", flex:1 }}>Package Details</div>
+              <button onClick={() => setShowPkgDetailModal(null)} style={{ background:"none", border:"none", fontSize:"1.4rem", cursor:"pointer", color:"#94a3b8" }}>&#x2715;</button>
+            </div>
+            <div style={{ padding:"20px 24px" }}>
+              <div style={{ fontSize:"1rem", fontWeight:600, color:"#0f172a", marginBottom:16 }}>Guest Name: {context.customers.find(c => c.id === form.customerId)?.name || "N/A"}</div>
+              <div style={{ border:"1px solid #e2e8f0", borderRadius:8, padding:16, background:"#f8fafc" }}>
+                <div style={{ marginBottom:8 }}><strong>Active Package:</strong> {showPkgDetailModal?.package?.name || "N/A"}</div>
+                <div style={{ marginBottom:8 }}><strong>Package Type:</strong> Base</div>
+                <div style={{ marginBottom:8 }}><strong>Purchase Date:</strong> {showPkgDetailModal?.startsAt ? new Date(showPkgDetailModal.startsAt).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}).replace(/ /g, "-") : "N/A"}</div>
+                <div style={{ marginBottom:16 }}><strong>Expiry Date:</strong> {showPkgDetailModal?.endsAt ? new Date(showPkgDetailModal.endsAt).toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"}).replace(/ /g, "-") : "N/A"}</div>
+                <div style={{ fontWeight:600, marginBottom:8 }}>services:</div>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.9rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom:"1px solid #e2e8f0" }}>
+                      <th style={{ textAlign:"left", padding:"6px 8px", color:"#475569" }}>Name</th>
+                      <th style={{ textAlign:"right", padding:"6px 8px", color:"#475569" }}>Avl</th>
+                      <th style={{ textAlign:"right", padding:"6px 8px", color:"#475569" }}>Used</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showPkgDetailModal?.package?.services || []).map((s, i) => {
+                      const totalSessions = s.sessions || 1;
+                      const usageLogs = showPkgDetailModal?.usageLogs || [];
+                      const used = usageLogs.filter(u => u.serviceId === s.serviceId).reduce((sum, u) => sum + (u.sessionsUsed || 0), 0);
+                      return (
+                        <tr key={i} style={{ borderBottom:"1px solid #f1f5f9" }}>
+                          <td style={{ padding:"6px 8px", color:"#334155" }}>- {s.service?.name || s.serviceId}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", fontWeight:600 }}>{totalSessions}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", fontWeight:600 }}>{used}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {(!showPkgDetailModal?.package?.services || showPkgDetailModal.package.services.length === 0) && (
+                  <div style={{ color:"#64748b", fontSize:"0.85rem", padding:"6px 0" }}>No services found</div>
+                )}
+              </div>
             </div>
           </div>
         </div>

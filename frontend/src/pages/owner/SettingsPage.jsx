@@ -1844,7 +1844,12 @@ export default function SettingsPage() {
     const saveDraft = () => {
       if (!draftTax) return;
       if (!draftTax.label.trim()) return;
-      const { _isNew, ...clean } = draftTax;
+      const { _isNew, ...cleanDraft } = draftTax;
+      const clean = {
+        ...cleanDraft,
+        code: cleanDraft.code || cleanDraft.label.trim().replace(/\s+/g, "_").toUpperCase(),
+        rate: Number(cleanDraft.rate || 0)
+      };
       if (_isNew) {
         updateAdvancedObject("taxMapping", { rates: [...taxRows, clean] });
       } else {

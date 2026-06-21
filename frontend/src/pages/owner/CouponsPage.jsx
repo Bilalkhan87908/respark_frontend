@@ -6,12 +6,18 @@ import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
 import { formatApiError } from "../../utils/apiError";
 
-const emptyCoupon = {
+const defaultCouponForm = {
   code: "",
   title: "",
-  discountType: "PERCENT",
-  discountValue: 10,
-  minBillAmount: 0
+  description: "",
+  discountType: "FIXED",
+  discountValue: 50,
+  minBillAmount: 59,
+  usageLimit: "",
+  startsAt: new Date().toISOString().split('T')[0],
+  validityDays: 90,
+  isActive: true,
+  isPrivate: false
 };
 
 const emptyGiftCard = {
@@ -26,7 +32,7 @@ export default function CouponsPage() {
   const [coupons, setCoupons] = useState([]);
   const [giftCards, setGiftCards] = useState([]);
   const [reports, setReports] = useState(null);
-  const [couponForm, setCouponForm] = useState(emptyCoupon);
+  const [couponForm, setCouponForm] = useState(defaultCouponForm);
   const [giftCardForm, setGiftCardForm] = useState(emptyGiftCard);
   const [status, setStatus] = useState({ error: "", success: "" });
   const [loading, setLoading] = useState(true);
@@ -34,6 +40,28 @@ export default function CouponsPage() {
   const [editingGc, setEditingGc] = useState(null);
   const [couponSearch, setCouponSearch] = useState("");
   const [editingCoupon, setEditingCoupon] = useState(null);
+
+  const handleEditCoupon = (c) => {
+    setEditingCoupon(c);
+    let valDays = 90;
+    if (c.startsAt && c.endsAt) {
+      const diffTime = Math.abs(new Date(c.endsAt) - new Date(c.startsAt));
+      valDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+    setCouponForm({
+      code: c.code || "",
+      title: c.title || "",
+      description: c.description || "",
+      discountType: c.discountType || "PERCENT",
+      discountValue: c.discountValue ? Number(c.discountValue) : 0,
+      minBillAmount: c.minBillAmount ? Number(c.minBillAmount) : 0,
+      usageLimit: c.usageLimit || "",
+      startsAt: c.startsAt ? new Date(c.startsAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      validityDays: valDays,
+      isActive: !c.isArchived,
+      isPrivate: c.notes === "PRIVATE"
+    });
+  };
 
   const mode = location.pathname.includes("/gift-cards")
     ? "giftCards"
@@ -69,22 +97,32 @@ export default function CouponsPage() {
   const saveCoupon = async (event) => {
     event.preventDefault();
     try {
+      const start = couponForm.startsAt ? new Date(couponForm.startsAt) : new Date();
+      const end = new Date(start);
+      end.setDate(end.getDate() + Number(couponForm.validityDays || 0));
+
+      const payload = {
+        code: couponForm.code,
+        title: couponForm.title,
+        description: couponForm.description || null,
+        discountType: couponForm.discountType,
+        discountValue: Number(couponForm.discountValue),
+        minBillAmount: Number(couponForm.minBillAmount || 0),
+        usageLimit: couponForm.usageLimit ? Number(couponForm.usageLimit) : null,
+        startsAt: start.toISOString(),
+        endsAt: end.toISOString(),
+        isArchived: !couponForm.isActive,
+        notes: couponForm.isPrivate ? "PRIVATE" : ""
+      };
+
       if (editingCoupon) {
-        await api.patch(`/owner/coupons/${editingCoupon.id}`, {
-          ...couponForm,
-          discountValue: Number(couponForm.discountValue),
-          minBillAmount: Number(couponForm.minBillAmount)
-        });
+        await api.patch(`/owner/coupons/${editingCoupon.id}`, payload);
         setStatus({ error: "", success: "Coupon updated." });
       } else {
-        await api.post("/owner/coupons", {
-          ...couponForm,
-          discountValue: Number(couponForm.discountValue),
-          minBillAmount: Number(couponForm.minBillAmount)
-        });
+        await api.post("/owner/coupons", payload);
         setStatus({ error: "", success: "Coupon created." });
       }
-      setCouponForm(emptyCoupon);
+      setCouponForm(defaultCouponForm);
       setEditingCoupon(null);
       await load();
     } catch (error) {
@@ -191,55 +229,296 @@ export default function CouponsPage() {
       {loading && <PageLoader title="Loading promotions workspace" message="Bringing together coupon rules, gift card balances, and redemption insights." />}
 
       {!loading && mode === "coupons" && (
-        <div className="panel-card">
-          <h3>{editingCoupon ? "Edit Coupon" : "Create Coupon"}</h3>
-          <form className="form-grid" onSubmit={saveCoupon}>
-            <label>
-              <span className="muted">Code</span>
-              <input placeholder="e.g. SUMMER20" required value={couponForm.code} onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })} />
-            </label>
-            <label>
-              <span className="muted">Title</span>
-              <input placeholder="e.g. Summer Sale Discount" required value={couponForm.title} onChange={(e) => setCouponForm({ ...couponForm, title: e.target.value })} />
-            </label>
-            <label>
-              <span className="muted">Discount Type</span>
-              <select value={couponForm.discountType} onChange={(e) => setCouponForm({ ...couponForm, discountType: e.target.value })}>
-                <option value="PERCENT">Percent (%)</option>
-                <option value="FIXED">Fixed Amount</option>
-              </select>
-            </label>
-            <label>
-              <span className="muted">Discount Value</span>
-              <input type="number" min="0" placeholder="e.g. 10" required value={couponForm.discountValue} onChange={(e) => setCouponForm({ ...couponForm, discountValue: e.target.value })} />
-            </label>
-            <label>
-              <span className="muted">Minimum Bill Amount</span>
-              <input type="number" min="0" placeholder="e.g. 500" value={couponForm.minBillAmount} onChange={(e) => setCouponForm({ ...couponForm, minBillAmount: e.target.value })} />
-            </label>
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <button type="submit">{editingCoupon ? "Update Coupon" : "Create Coupon"}</button>
-              {editingCoupon && <button type="button" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCoupon); }} style={{ background: "#f1f5f9", color: "#475569" }}>Cancel</button>}
+        <div style={{ display: "flex", gap: 24, marginTop: 20, minHeight: 600 }}>
+          {/* Left Column - List of Coupons */}
+          <div style={{ width: "30%", minWidth: 280, display: "flex", flexDirection: "column", background: "white", borderRadius: 16, padding: 20, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.05)" }}>
+            <div style={{ marginBottom: 16 }}>
+              <input 
+                placeholder="Search" 
+                value={couponSearch} 
+                onChange={(e) => setCouponSearch(e.target.value)} 
+                style={{ width: "100%", padding: "10px 14px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              />
             </div>
-          </form>
+            
+            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, maxHeight: 480, paddingRight: 4 }}>
+              {filteredCoupons.map((row) => {
+                const isSelected = editingCoupon && editingCoupon.id === row.id;
+                return (
+                  <div 
+                    key={row.id} 
+                    onClick={() => handleEditCoupon(row)}
+                    style={{ 
+                      padding: "16px", 
+                      borderRadius: 8, 
+                      cursor: "pointer", 
+                      background: isSelected ? "#e0f2fe" : "transparent",
+                      border: isSelected ? "1px solid #0284c7" : "1px solid #f1f5f9",
+                      transition: "all 0.2s" 
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem" }}>
+                      {row.discountType === "PERCENT" ? `FLAT ${Number(row.discountValue)}% OFF` : `FLAT ${Number(row.discountValue)} Rs OFF`}
+                    </div>
+                    <div style={{ color: isSelected ? "#0284c7" : "#475569", fontSize: "0.85rem", marginTop: 4, fontWeight: 500 }}>
+                      {row.code}
+                    </div>
+                  </div>
+                );
+              })}
+              {!filteredCoupons.length && (
+                <div style={{ textAlign: "center", color: "#94a3b8", padding: "40px 10px", fontSize: "0.9rem" }}>No coupons found</div>
+              )}
+            </div>
 
-          <div style={{ marginTop: 16, marginBottom: 8 }}>
-            <input placeholder="Search coupons..." value={couponSearch} onChange={(e) => setCouponSearch(e.target.value)} style={{ width: "100%", padding: "8px 12px", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, boxSizing: "border-box" }} />
+            <button 
+              onClick={() => { setEditingCoupon(null); setCouponForm(defaultCouponForm); }}
+              style={{ 
+                marginTop: 16, 
+                width: "100%", 
+                padding: "12px", 
+                background: "#3b82f6", 
+                color: "white", 
+                border: "none", 
+                borderRadius: 8, 
+                fontWeight: 700, 
+                cursor: "pointer",
+                fontSize: "0.95rem"
+              }}
+            >
+              Create New Coupon
+            </button>
           </div>
-          <div className="list-stack">
-            {filteredCoupons.map((row) => (
-              <div key={row.id} className="list-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <strong>{row.code} - {row.title}</strong>
-                  <div className="item-meta">{row.discountType} | {row.discountType === "PERCENT" ? `${row.discountValue}%` : `$${row.discountValue}`} off | Min bill: ${row.minBillAmount || 0} | Used {row.usageCount}x</div>
+
+          {/* Right Column - Coupon Form */}
+          <div style={{ flex: 1, background: "white", borderRadius: 16, padding: 30, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.05)", display: "flex", flexDirection: "column" }}>
+            <h2 style={{ marginTop: 0, marginBottom: 24, fontSize: "1.4rem", fontWeight: 700, color: "#0f172a" }}>
+              {editingCoupon ? "Update Coupon" : "Create Coupon"}
+            </h2>
+            
+            <form onSubmit={saveCoupon} style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
+              {/* Row 1: Name, Code, Description, Active */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1.5fr 2fr auto", gap: 16, alignItems: "center" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Name</span>
+                  <input 
+                    placeholder="e.g. GMAP Review" 
+                    required 
+                    value={couponForm.title} 
+                    onChange={(e) => setCouponForm({ ...couponForm, title: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+                
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Code</span>
+                  <input 
+                    placeholder="e.g. GMAP" 
+                    required 
+                    value={couponForm.code} 
+                    onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+                
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Description</span>
+                  <input 
+                    placeholder="e.g. Once Per Customer Where..." 
+                    value={couponForm.description} 
+                    onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+                
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 22, cursor: "pointer", userSelect: "none" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={couponForm.isActive} 
+                    onChange={(e) => setCouponForm({ ...couponForm, isActive: e.target.checked })}
+                    style={{ width: 18, height: 18, cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "#475569" }}>Active</span>
+                </label>
+              </div>
+
+              {/* Row 2: Benefit Type, Benefit Value, Activated Date */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Benefit Type</span>
+                  <div style={{ display: "flex", gap: 20, marginTop: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input 
+                        type="radio" 
+                        name="discountType" 
+                        value="FIXED" 
+                        checked={couponForm.discountType === "FIXED"} 
+                        onChange={() => setCouponForm({ ...couponForm, discountType: "FIXED" })}
+                        style={{ width: 16, height: 16 }}
+                      />
+                      <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "#334155" }}>Fixed</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input 
+                        type="radio" 
+                        name="discountType" 
+                        value="PERCENT" 
+                        checked={couponForm.discountType === "PERCENT"} 
+                        onChange={() => setCouponForm({ ...couponForm, discountType: "PERCENT" })}
+                        style={{ width: 16, height: 16 }}
+                      />
+                      <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "#334155" }}>Percentage</span>
+                    </label>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => { setEditingCoupon(row); setCouponForm({ code: row.code, title: row.title, discountType: row.discountType, discountValue: row.discountValue, minBillAmount: row.minBillAmount }); }} style={{ padding: "4px 10px", fontSize: 12, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer", color: "#1d4ed8", fontWeight: 600 }}>Edit</button>
-                  <button onClick={() => deleteCoupon(row.id)} style={{ padding: "4px 10px", fontSize: 12, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626", fontWeight: 600 }}>Delete</button>
+                
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Benefit Value in ₹</span>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    placeholder="50" 
+                    required 
+                    value={couponForm.discountValue} 
+                    onChange={(e) => setCouponForm({ ...couponForm, discountValue: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+                
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Coupon Activated Date</span>
+                  <input 
+                    type="date" 
+                    required 
+                    value={couponForm.startsAt} 
+                    onChange={(e) => setCouponForm({ ...couponForm, startsAt: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+              </div>
+
+              {/* Row 3: Minimum Amount, Max Used Count, Validity */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Minimum Amount for Redemption</span>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    placeholder="59" 
+                    value={couponForm.minBillAmount} 
+                    onChange={(e) => setCouponForm({ ...couponForm, minBillAmount: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+                
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Max Used Count</span>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    placeholder="Enter Count" 
+                    value={couponForm.usageLimit} 
+                    onChange={(e) => setCouponForm({ ...couponForm, usageLimit: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+                
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>Validity (In days)</span>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    placeholder="90" 
+                    required 
+                    value={couponForm.validityDays} 
+                    onChange={(e) => setCouponForm({ ...couponForm, validityDays: e.target.value })}
+                    style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: "0.9rem", width: "100%", boxSizing: "border-box" }}
+                  />
+                </label>
+              </div>
+
+              {/* Toggle Row: Private */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc", marginTop: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: "#1e293b", fontSize: "0.9rem" }}>Private</div>
+                  <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>This coupon will not be visible on the public online catalog.</div>
+                </div>
+                <div 
+                  onClick={() => setCouponForm({ ...couponForm, isPrivate: !couponForm.isPrivate })}
+                  style={{ 
+                    width: 44, 
+                    height: 22, 
+                    background: couponForm.isPrivate ? "#3b82f6" : "#cbd5e1", 
+                    borderRadius: 11, 
+                    padding: 2, 
+                    cursor: "pointer", 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: couponForm.isPrivate ? "flex-end" : "flex-start",
+                    transition: "all 0.2s",
+                    boxSizing: "border-box"
+                  }}
+                >
+                  <div style={{ width: 18, height: 18, background: "white", borderRadius: "50%", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
                 </div>
               </div>
-            ))}
-            {!filteredCoupons.length && <EmptyState title="No coupons found" message={couponSearch ? "No coupons match your search." : "Create a coupon to support discounts, campaigns, and front-desk offers."} />}
+
+              {/* Form Buttons */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: "auto", paddingTop: 20 }}>
+                {editingCoupon && (
+                  <button 
+                    type="button" 
+                    onClick={() => deleteCoupon(editingCoupon.id)}
+                    style={{ 
+                      marginRight: "auto", 
+                      padding: "10px 16px", 
+                      background: "#fef2f2", 
+                      color: "#dc2626", 
+                      border: "1px solid #fee2e2", 
+                      borderRadius: 6, 
+                      fontWeight: 600, 
+                      cursor: "pointer",
+                      fontSize: "0.9rem"
+                    }}
+                  >
+                    Delete
+                  </button>
+                )}
+                
+                <button 
+                  type="button" 
+                  onClick={() => { setEditingCoupon(null); setCouponForm(defaultCouponForm); }}
+                  style={{ 
+                    padding: "10px 18px", 
+                    background: "#f1f5f9", 
+                    color: "#475569", 
+                    border: "1px solid #e2e8f0", 
+                    borderRadius: 6, 
+                    fontWeight: 600, 
+                    cursor: "pointer",
+                    fontSize: "0.9rem"
+                  }}
+                >
+                  Cancel
+                </button>
+                
+                <button 
+                  type="submit" 
+                  style={{ 
+                    padding: "10px 22px", 
+                    background: "#3b82f6", 
+                    color: "white", 
+                    border: "none", 
+                    borderRadius: 6, 
+                    fontWeight: 600, 
+                    cursor: "pointer", 
+                    fontSize: "0.9rem"
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

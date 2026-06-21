@@ -24,10 +24,23 @@ const getFilenameFromDisposition = (headerValue, fallback) => {
 
 export const downloadFromApi = async (url, { params, fallbackFilename = "download.txt" } = {}) => {
   console.log("[downloadFromApi] Initiating download for:", url);
-  const response = await api.get(url, {
-    params,
-    responseType: "blob"
-  });
+  let response;
+  try {
+    response = await api.get(url, {
+      params,
+      responseType: "blob"
+    });
+  } catch (error) {
+    if (error.response?.data instanceof Blob && error.response.data.type?.includes("json")) {
+      try {
+        const text = await error.response.data.text();
+        error.response.data = JSON.parse(text);
+      } catch (e) {
+        // ignore
+      }
+    }
+    throw error;
+  }
 
   // Safe fetch content-disposition from Axios headers (Axios v1.x uses headers.get())
   const disposition = response.headers?.get 

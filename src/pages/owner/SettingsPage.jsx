@@ -242,7 +242,7 @@ const defaultAdvancedSettings = {
     { id: makeId("pnl"), name: "Service Revenue", type: "Income", active: true }
   ],
   pnlIncomeTaxes: [
-    { id: makeId("taxbucket"), name: "Service Tax", rate: 18, active: true }
+    { id: makeId("taxbucket"), slabFrom: 0, slabTo: 100000, rate: 18, active: true }
   ],
   incentiveSettings: {
     enabled: true,
@@ -302,7 +302,13 @@ const mergeAdvancedSettings = (raw = {}) => {
   designations: Array.isArray(raw.designations) && raw.designations.length ? raw.designations : defaultAdvancedSettings.designations,
   legalContent: { ...defaultAdvancedSettings.legalContent, ...(raw.legalContent || {}) },
   pnlCategories: Array.isArray(raw.pnlCategories) && raw.pnlCategories.length ? raw.pnlCategories : defaultAdvancedSettings.pnlCategories,
-  pnlIncomeTaxes: Array.isArray(raw.pnlIncomeTaxes) && raw.pnlIncomeTaxes.length ? raw.pnlIncomeTaxes : defaultAdvancedSettings.pnlIncomeTaxes,
+  pnlIncomeTaxes: (Array.isArray(raw.pnlIncomeTaxes) && raw.pnlIncomeTaxes.length ? raw.pnlIncomeTaxes : defaultAdvancedSettings.pnlIncomeTaxes).map((item) => ({
+    id: item.id || makeId("taxbucket"),
+    slabFrom: item.slabFrom !== undefined ? Number(item.slabFrom) : 0,
+    slabTo: item.slabTo !== undefined ? Number(item.slabTo) : 100000,
+    rate: item.rate !== undefined ? Number(item.rate) : 18,
+    active: item.active !== undefined ? Boolean(item.active) : true
+  })),
   incentiveSettings: { ...defaultAdvancedSettings.incentiveSettings, ...(raw.incentiveSettings || {}) },
   footerContent: { ...defaultAdvancedSettings.footerContent, ...(raw.footerContent || {}) }
   };
@@ -432,11 +438,18 @@ export default function SettingsPage() {
   const [selectedTaxId, setSelectedTaxId] = useState(null);
   const [draftTax, setDraftTax] = useState(null);
   const [selectedShiftId, setSelectedShiftId] = useState(null);
+  const [selectedPnlCategoryId, setSelectedPnlCategoryId] = useState(null);
+  const [draftPnlCategory, setDraftPnlCategory] = useState(null);
+  const [selectedPnlIncomeTaxId, setSelectedPnlIncomeTaxId] = useState(null);
+  const [draftPnlIncomeTax, setDraftPnlIncomeTax] = useState(null);
+  const [selectedCouponId, setSelectedCouponId] = useState(null);
+  const [draftCoupon, setDraftCoupon] = useState(null);
+  const [couponSearch, setCouponSearch] = useState("");
   const [editingCard, setEditingCard] = useState(null);
   const [newCardName, setNewCardName] = useState("");
   const [cardForm, setCardForm] = useState({ name: "", description: "", active: true, amount: "", validityDays: 30, renewalReminderDays: 7 });
-  const [newTypeName, setNewTypeName] = useState("");
-  const [editingType, setEditingType] = useState(null);
+  const [selectedFeedbackTypeId, setSelectedFeedbackTypeId] = useState(null);
+  const [draftFeedbackType, setDraftFeedbackType] = useState(null);
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
   const rosterInitializedRef = useRef(false);
   const salonId = auth?.salonId || auth?.membership?.salonId || auth?.membership?.salon?.id || "global";
@@ -623,6 +636,18 @@ export default function SettingsPage() {
     });
   }, [summary.staffRows]);
 
+  useEffect(() => {
+    if (draftCoupon?._isNew) return;
+    if (!summary.coupons.length) {
+      if (selectedCouponId !== null) setSelectedCouponId(null);
+      return;
+    }
+    const exists = summary.coupons.some((row) => row.id === selectedCouponId);
+    if (!exists) {
+      setSelectedCouponId(summary.coupons[0].id);
+    }
+  }, [summary.coupons, selectedCouponId, draftCoupon]);
+
   const handleReset = async () => {
     try {
       setSaving(true);
@@ -737,6 +762,15 @@ export default function SettingsPage() {
   }));
 
   const liveStats = summaryStats(summary);
+
+  const refreshCouponsSummary = useCallback(async () => {
+    try {
+      const response = await api.get("/owner/coupons");
+      setSummary((current) => ({ ...current, coupons: Array.isArray(response.data) ? response.data : [] }));
+    } catch {
+      // keep last known list
+    }
+  }, []);
 
   const issueGiftCardFromSettings = async (event) => {
     event.preventDefault();
@@ -2245,33 +2279,67 @@ export default function SettingsPage() {
       { id: "personal-hygiene", name: "Personal Hygiene", active: true },
       { id: "remark", name: "Remark", active: true }
     ];
+    const activeCount = feedbackTypes.filter((type) => type.active).length;
     const updateFeedbackTypes = (newTypes) => {
       updateAdvancedObject("feedbackSetting", { types: newTypes });
     };
 
-    const handleCreateType = () => {
-      if (!newTypeName.trim()) return;
-      const newType = { id: `type-${Date.now()}`, name: newTypeName.trim(), active: true };
-      updateFeedbackTypes([...feedbackTypes, newType]);
-      setNewTypeName("");
+    const selectedRow = feedbackTypes.find((row) => row.id === selectedFeedbackTypeId) || null;
+    const editing = draftFeedbackType || selectedRow;
+
+    const startCreate = () => {
+      const newId = `type-${Date.now()}`;
+      setDraftFeedbackType({ id: newId, name: "", active: true, _isNew: true });
+      setSelectedFeedbackTypeId(newId);
     };
 
-    const handleUpdateType = (id, updates) => {
-      updateFeedbackTypes(feedbackTypes.map(t => t.id === id ? { ...t, ...updates } : t));
+    const startEdit = (row) => {
+      setDraftFeedbackType({ ...row, _isNew: false });
+      setSelectedFeedbackTypeId(row.id);
     };
 
-    const handleDeleteType = (id) => {
-      updateFeedbackTypes(feedbackTypes.filter(t => t.id !== id));
-      if (editingType?.id === id) setEditingType(null);
+    const cancelDraft = () => {
+      if (draftFeedbackType?._isNew) setSelectedFeedbackTypeId(null);
+      setDraftFeedbackType(null);
+    };
+
+    const saveDraft = () => {
+      if (!draftFeedbackType) return;
+      const { _isNew, ...cleanDraft } = draftFeedbackType;
+      if (!cleanDraft.name.trim()) return;
+      const clean = {
+        ...cleanDraft,
+        name: cleanDraft.name.trim()
+      };
+      const nextRows = _isNew
+        ? [...feedbackTypes, clean]
+        : feedbackTypes.map((row) => (row.id === clean.id ? clean : row));
+      updateFeedbackTypes(nextRows);
+      setDraftFeedbackType(null);
+      setSelectedFeedbackTypeId(clean.id);
+    };
+
+    const deleteRow = (id) => {
+      updateFeedbackTypes(feedbackTypes.filter((row) => row.id !== id));
+      if (selectedFeedbackTypeId === id) {
+        setSelectedFeedbackTypeId(null);
+        setDraftFeedbackType(null);
+      }
     };
 
     return (
       <>
-        <SectionHeader title="Feedback Setting" description="Control how and when guest feedback is requested, escalated, and acknowledged." badges={[feedback.enabled ? "Feedback On" : "Feedback Off"]} action={<Link className="secondary-button" to="/admin/feedback">Open Feedback Module</Link>} />
-        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
-          These values feed the live feedback settings endpoint, negative-rating alert flow, and owner feedback workspace.
+        <SectionHeader
+          title="Feedback Setting"
+          description="Control how guest feedback is requested, escalated, and acknowledged from one polished workspace."
+          badges={[feedback.enabled ? "Feedback On" : "Feedback Off", `${feedbackTypes.length} types`, `${activeCount} active`]}
+          action={<Link className="secondary-button" to="/admin/feedback">Open Feedback Module</Link>}
+        />
+        <div className="muted" style={{ marginBottom: 16, fontSize: 12 }}>
+          These values feed the live feedback settings endpoint, low-rating alert flow, and owner feedback workspace.
         </div>
-        <div className="settings-panel-card">
+
+        <div className="settings-panel-card" style={{ marginBottom: 20 }}>
           <div className="settings-toggle-grid">
             <ToggleRow checked={feedback.enabled} label="Enable feedback" onChange={(value) => updateAdvancedObject("feedbackSetting", { enabled: value })} />
             <ToggleRow checked={feedback.sendSms} label="Send feedback email" onChange={(value) => updateAdvancedObject("feedbackSetting", { sendSms: value })} />
@@ -2285,72 +2353,71 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="settings-panel-card" style={{ marginTop: 20 }}>
-          <h3 style={{ margin: 0, marginBottom: 14, fontSize: 16, fontWeight: 700, color: "#0f172a" }}>Feedback Type Details</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-                {feedbackTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() => setEditingType(type)}
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ width: 280, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
+              </div>
+              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                {feedbackTypes.map((row) => (
+                  <div
+                    key={row.id}
                     style={{
-                      padding: "10px 14px",
-                      border: editingType?.id === type.id ? "2px solid #3b82f6" : "1px solid #e2e8f0",
-                      borderRadius: 8,
-                      background: editingType?.id === type.id ? "#eff6ff" : "#fff",
-                      textAlign: "left",
-                      fontSize: 14,
-                      color: "#0f172a",
+                      padding: "14px 16px",
+                      borderBottom: "1px solid #f1f5f9",
                       cursor: "pointer",
-                      fontWeight: editingType?.id === type.id ? 600 : 500
+                      background: selectedFeedbackTypeId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedFeedbackTypeId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
                     }}
                   >
-                    {type.name} {!type.active && <span style={{ color: "#ef4444", fontSize: 12, marginLeft: 8 }}>(Inactive)</span>}
-                  </button>
+                    <div style={{ flex: 1 }} onClick={() => { setSelectedFeedbackTypeId(row.id); setDraftFeedbackType(null); }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{row.name}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{row.active ? "• Active" : "○ Inactive"}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); startEdit(row); }} style={{ width: 28, height: 28, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", color: "#475569" }}>✎</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row.id); }} style={{ width: 28, height: 28, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626" }}>✕</button>
+                    </div>
+                  </div>
                 ))}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  value={newTypeName}
-                  onChange={(e) => setNewTypeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateType()}
-                  placeholder="New feedback type name"
-                  style={{ flex: 1, padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 13 }}
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateType}
-                  style={{ padding: "8px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 13 }}
-                >
-                  Create New
-                </button>
-              </div>
             </div>
-            <div>
-              {editingType ? (
-                <div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#3b82f6" }}>{draftFeedbackType?._isNew ? "Create Feedback Type" : "Edit Feedback Type"}</h3>
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
                   <label className="settings-input-group">
                     <span className="muted">Feedback Name</span>
-                    <input value={editingType.name} onChange={(e) => handleUpdateType(editingType.id, { name: e.target.value })} />
+                    <input type="text" value={draftFeedbackType?.name ?? editing.name} onChange={(event) => draftFeedbackType && setDraftFeedbackType({ ...draftFeedbackType, name: event.target.value })} placeholder="Enter Feedback Name" />
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer" }}>
-                    <input type="checkbox" checked={editingType.active} onChange={(e) => handleUpdateType(editingType.id, { active: e.target.checked })} style={{ width: 18, height: 18 }} />
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>Active</span>
-                  </label>
-                  <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-                    <button type="button" onClick={() => handleDeleteType(editingType.id)} style={{ padding: "8px 16px", background: "#fff", border: "1px solid #ef4444", color: "#ef4444", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>Delete</button>
-                    <button type="button" onClick={() => setEditingType(null)} style={{ padding: "8px 16px", background: "#fff", border: "1px solid #cbd5e1", color: "#475569", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>Cancel</button>
-                    <button type="button" onClick={() => setEditingType(null)} style={{ padding: "8px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Update</button>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer", marginBottom: 20 }}>
+                  <input type="checkbox" checked={draftFeedbackType?.active ?? editing.active} onChange={(event) => draftFeedbackType && setDraftFeedbackType({ ...draftFeedbackType, active: event.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+                  Active
+                </label>
+                <div style={{ marginTop: 18, padding: 16, borderRadius: 12, background: "#f8fafc", border: "1px solid #e2e8f0", marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>How it works</div>
+                  <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
+                    Feedback types stay synced with the live feedback request flow. When an invoice completes or a service closes, the selected type can be used to organize the request and follow-up sequence.
                   </div>
                 </div>
-              ) : (
-                <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-                  Select a feedback type to edit, or create a new one
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Save</button>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: "#94a3b8", fontSize: 14 }}>
+                Select a feedback type from the left panel or click "Create New"
+              </div>
+            )}
           </div>
         </div>
       </>
@@ -2966,6 +3033,717 @@ export default function SettingsPage() {
     </>
   );
 
+  const renderPnlCategoriesSection = () => {
+    const rows = [...form.advancedSettings.pnlCategories].sort((a, b) => {
+      const leftSeq = Number(a.sequenceNumber || 0);
+      const rightSeq = Number(b.sequenceNumber || 0);
+      if (leftSeq !== rightSeq) return leftSeq - rightSeq;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+    const selectedRow = rows.find((row) => row.id === selectedPnlCategoryId) || null;
+    const editing = draftPnlCategory || selectedRow;
+
+    const startCreate = () => {
+      const newId = makeId("pnl");
+      setDraftPnlCategory({ id: newId, name: "", type: "Expense", sequenceNumber: rows.length ? Math.max(...rows.map((row) => Number(row.sequenceNumber || 0))) + 1 : 1, active: true, _isNew: true });
+      setSelectedPnlCategoryId(newId);
+    };
+
+    const startEdit = (row) => {
+      setDraftPnlCategory({ ...row, _isNew: false });
+      setSelectedPnlCategoryId(row.id);
+    };
+
+    const cancelDraft = () => {
+      if (draftPnlCategory?._isNew) {
+        setSelectedPnlCategoryId(null);
+      }
+      setDraftPnlCategory(null);
+    };
+
+    const saveDraft = () => {
+      if (!draftPnlCategory) return;
+      const { _isNew, ...cleanDraft } = draftPnlCategory;
+      const clean = {
+        ...cleanDraft,
+        name: String(cleanDraft.name || "").trim(),
+        type: cleanDraft.type === "Income" ? "Income" : "Expense",
+        sequenceNumber: Number(cleanDraft.sequenceNumber || 0),
+        active: Boolean(cleanDraft.active)
+      };
+      if (!clean.name) return;
+      const nextRows = _isNew
+        ? [...form.advancedSettings.pnlCategories, clean]
+        : form.advancedSettings.pnlCategories.map((row) => (row.id === clean.id ? clean : row));
+      updateArrayCollection("pnlCategories", nextRows);
+      setDraftPnlCategory(null);
+      setSelectedPnlCategoryId(clean.id);
+    };
+
+    const deleteRow = (id) => {
+      updateArrayCollection("pnlCategories", form.advancedSettings.pnlCategories.filter((row) => row.id !== id));
+      if (selectedPnlCategoryId === id) {
+        setSelectedPnlCategoryId(null);
+        setDraftPnlCategory(null);
+      }
+    };
+
+    return (
+      <>
+        <SectionHeader
+          title="PNL Categories"
+          description="Build ordered profit-and-loss buckets that can be reused by finance, expense, and reporting workflows."
+          badges={[`${rows.length} entries`, `${summary.expenseAccountInjections.length} account injections`]}
+          action={<div className="inline-actions"><Link className="secondary-button" to="/admin/expenses/categories">Expense Types</Link><Link className="secondary-button" to="/admin/expenses/accounts">Ledger Accounts</Link></div>}
+        />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          These categories behave like a finance taxonomy: income buckets, expense buckets, and ordered report rows. The active list is stored in salon settings and reused by report and expense modules.
+        </div>
+
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ width: 300, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
+              </div>
+              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      background: selectedPnlCategoryId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedPnlCategoryId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}
+                  >
+                    <div style={{ flex: 1 }} onClick={() => { setSelectedPnlCategoryId(row.id); setDraftPnlCategory(null); }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{row.name || "Untitled Category"}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                        #{row.sequenceNumber || 0} | {row.type || "Expense"} {row.active ? "• Active" : "• Inactive"}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); startEdit(row); }} style={{ width: 28, height: 28, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", color: "#475569" }}>✎</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row.id); }} style={{ width: 28, height: 28, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#3b82f6" }}>{draftPnlCategory?._isNew ? "Create PNL Category" : `Edit: ${editing.name || "Category"}`}</h3>
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
+                  <label className="settings-input-group">
+                    <span className="muted">Category Name</span>
+                    <input
+                      type="text"
+                      value={draftPnlCategory?.name ?? editing.name}
+                      onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, name: event.target.value })}
+                      placeholder="Enter Name"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Category Sequence Number</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftPnlCategory?.sequenceNumber ?? editing.sequenceNumber ?? 0}
+                      onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, sequenceNumber: Number(event.target.value || 0) })}
+                      placeholder="Enter Sequence Number"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Category Type</span>
+                    <select
+                      value={draftPnlCategory?.type ?? editing.type ?? "Expense"}
+                      onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, type: event.target.value })}
+                    >
+                      <option value="Income">Income</option>
+                      <option value="Expense">Expense</option>
+                    </select>
+                  </label>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer", marginBottom: 20 }}>
+                  <input
+                    type="checkbox"
+                    checked={draftPnlCategory?.active ?? editing.active}
+                    onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, active: event.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }}
+                  />
+                  Active
+                </label>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Save</button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: "#94a3b8", fontSize: 14 }}>
+                Select a PNL category from the left panel or click "Create New"
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="settings-panel-card" style={{ marginTop: 16 }}>
+          <div className="settings-toggle-grid">
+            <ToggleRow
+              checked={form.advancedSettings.expenseSettings.autoApprove}
+              label="Auto-approve expenses"
+              helper="When off, every new expense lands in Pending and only approver roles can approve or reject it."
+              onChange={(value) => updateAdvancedObject("expenseSettings", { autoApprove: value })}
+            />
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderCouponsSection = () => {
+    const couponSettings = form.advancedSettings.couponSettings;
+    const rows = [...summary.coupons].sort((a, b) => {
+      const left = new Date(a.createdAt || 0).getTime();
+      const right = new Date(b.createdAt || 0).getTime();
+      if (left !== right) return right - left;
+      return String(a.code || "").localeCompare(String(b.code || ""));
+    });
+    const filteredRows = rows.filter((row) => {
+      const haystack = `${row.code || ""} ${row.title || ""} ${row.description || ""} ${row.branch?.name || ""}`.toLowerCase();
+      return !couponSearch || haystack.includes(couponSearch.trim().toLowerCase());
+    });
+    const activeCount = rows.filter((row) => !row.isArchived).length;
+    const archivedCount = rows.filter((row) => row.isArchived).length;
+    const selectedRow = rows.find((row) => row.id === selectedCouponId) || null;
+    const editing = draftCoupon || selectedRow;
+
+    const toDateInput = (value) => {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toISOString().slice(0, 10);
+    };
+
+    const makeDraftFromRow = (row, isNew = false) => ({
+      id: row?.id || makeId("coupon"),
+      branchId: row?.branchId || row?.branch?.id || "",
+      serviceId: row?.serviceId || row?.service?.id || "",
+      productId: row?.productId || row?.product?.id || "",
+      code: row?.code || "",
+      title: row?.title || "",
+      description: row?.description || "",
+      discountType: row?.discountType || "PERCENT",
+      discountValue: row?.discountValue ?? 10,
+      minBillAmount: row?.minBillAmount ?? 0,
+      usageLimit: row?.usageLimit ?? "",
+      customerUsageLimit: row?.customerUsageLimit ?? "",
+      startsAt: toDateInput(row?.startsAt),
+      endsAt: toDateInput(row?.endsAt),
+      isReferral: Boolean(row?.isReferral),
+      isInfluencer: Boolean(row?.isInfluencer),
+      isBirthday: Boolean(row?.isBirthday),
+      isFestival: Boolean(row?.isFestival),
+      isArchived: Boolean(row?.isArchived),
+      notes: row?.notes || "",
+      _isNew: isNew
+    });
+
+    const startCreate = () => {
+      const newDraft = makeDraftFromRow({ code: "", title: "", discountType: "PERCENT", discountValue: 10, minBillAmount: 0, isArchived: false }, true);
+      setDraftCoupon(newDraft);
+      setSelectedCouponId(newDraft.id);
+    };
+
+    const startEdit = (row) => {
+      setDraftCoupon(makeDraftFromRow(row, false));
+      setSelectedCouponId(row.id);
+    };
+
+    const cancelDraft = () => {
+      if (draftCoupon?._isNew) {
+        setSelectedCouponId(rows[0]?.id || null);
+      }
+      setDraftCoupon(null);
+    };
+
+    const buildPayload = (draft) => ({
+      branchId: draft.branchId || null,
+      serviceId: draft.serviceId || null,
+      productId: draft.productId || null,
+      code: String(draft.code || "").trim().toUpperCase(),
+      title: String(draft.title || "").trim(),
+      description: String(draft.description || "").trim() || null,
+      discountType: draft.discountType === "FIXED" ? "FIXED" : "PERCENT",
+      discountValue: Number(draft.discountValue || 0),
+      minBillAmount: Number(draft.minBillAmount || 0),
+      usageLimit: draft.usageLimit === "" || draft.usageLimit == null ? null : Number(draft.usageLimit),
+      customerUsageLimit: draft.customerUsageLimit === "" || draft.customerUsageLimit == null ? null : Number(draft.customerUsageLimit),
+      startsAt: draft.startsAt || null,
+      endsAt: draft.endsAt || null,
+      isReferral: Boolean(draft.isReferral),
+      isInfluencer: Boolean(draft.isInfluencer),
+      isBirthday: Boolean(draft.isBirthday),
+      isFestival: Boolean(draft.isFestival),
+      isArchived: Boolean(draft.isArchived),
+      notes: String(draft.notes || "").trim() || null
+    });
+
+    const saveDraft = async () => {
+      if (!draftCoupon) return;
+      const cleanCode = String(draftCoupon.code || "").trim();
+      const cleanTitle = String(draftCoupon.title || "").trim();
+      if (!cleanCode || !cleanTitle) {
+        setStatus({ loading: false, error: "Coupon code and title are required.", success: "" });
+        return;
+      }
+      try {
+        setSaving(true);
+        setStatus((current) => ({ ...current, error: "", success: "" }));
+        const payload = buildPayload(draftCoupon);
+        if (draftCoupon._isNew) {
+          const response = await api.post("/owner/coupons", payload);
+          setSelectedCouponId(response.data?.id || draftCoupon.id);
+          setStatus({ loading: false, error: "", success: "Coupon created successfully." });
+        } else {
+          await api.patch(`/owner/coupons/${draftCoupon.id}`, payload);
+          setStatus({ loading: false, error: "", success: "Coupon updated successfully." });
+        }
+        setDraftCoupon(null);
+        await refreshCouponsSummary();
+      } catch (error) {
+        setStatus({ loading: false, error: formatApiError(error, "Could not save coupon"), success: "" });
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const toggleArchived = async (row) => {
+      try {
+        setStatus((current) => ({ ...current, error: "", success: "" }));
+        const payload = buildPayload({ ...makeDraftFromRow(row, false), isArchived: !row.isArchived });
+        await api.patch(`/owner/coupons/${row.id}`, payload);
+        setStatus({ loading: false, error: "", success: row.isArchived ? "Coupon restored." : "Coupon archived." });
+        await refreshCouponsSummary();
+        if (selectedCouponId === row.id) {
+          setDraftCoupon((current) => (current && current.id === row.id ? { ...current, isArchived: !row.isArchived } : current));
+        }
+      } catch (error) {
+        setStatus({ loading: false, error: formatApiError(error, "Could not update coupon"), success: "" });
+      }
+    };
+
+    return (
+      <>
+        <SectionHeader
+          title="Coupons"
+          description="Manage salon coupon rules from the settings hub while the live coupons module stays in sync."
+          badges={[`${rows.length} live coupons`, `${activeCount} active`, `${archivedCount} archived`]}
+          action={<Link className="secondary-button" to="/admin/coupons">Open Module</Link>}
+        />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Coupon settings control whether discounts are stackable and how high a coupon can go. The records below are the live coupons used by POS, invoices, and campaigns.
+        </div>
+
+        <div className="settings-panel-card" style={{ marginBottom: 16 }}>
+          <div className="settings-toggle-grid">
+            <ToggleRow checked={couponSettings.enabled} label="Enable coupons" onChange={(value) => updateAdvancedObject("couponSettings", { enabled: value })} />
+            <ToggleRow checked={couponSettings.stackable} label="Allow stackable coupons" onChange={(value) => updateAdvancedObject("couponSettings", { stackable: value })} />
+            <label className="settings-input-group">
+              <span className="muted">Max discount %</span>
+              <input type="number" min="0" value={couponSettings.maxDiscountPercent} onChange={(event) => updateAdvancedObject("couponSettings", { maxDiscountPercent: Number(event.target.value || 0) })} />
+            </label>
+            <label className="settings-input-group">
+              <span className="muted">Minimum bill amount</span>
+              <input type="number" min="0" value={couponSettings.minimumBillAmount} onChange={(event) => updateAdvancedObject("couponSettings", { minimumBillAmount: Number(event.target.value || 0) })} />
+            </label>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ width: 320, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New Coupon</button>
+              </div>
+              <div style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
+                <input
+                  value={couponSearch}
+                  onChange={(event) => setCouponSearch(event.target.value)}
+                  placeholder="Search coupons..."
+                  style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 14, boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ maxHeight: 520, overflowY: "auto" }}>
+                {filteredRows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      background: selectedCouponId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedCouponId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12
+                    }}
+                  >
+                    <div style={{ flex: 1 }} onClick={() => { setSelectedCouponId(row.id); setDraftCoupon(null); }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{row.code || "Untitled Coupon"}</div>
+                      <div style={{ fontSize: 12, color: "#475569", marginTop: 3 }}>{row.title || "No title"}{row.isArchived ? " • Archived" : " • Active"}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                        {row.discountType === "PERCENT" ? `${row.discountValue}% off` : `₹${Number(row.discountValue || 0) || 0} off`} | Min bill {formatMoney(Number(row.minBillAmount || 0))}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); startEdit(row); }}
+                        title="Edit coupon"
+                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#475569", padding: 0 }}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); toggleArchived(row); }}
+                        title={row.isArchived ? "Restore coupon" : "Archive coupon"}
+                        style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", background: row.isArchived ? "#eff6ff" : "#fef2f2", border: `1px solid ${row.isArchived ? "#bfdbfe" : "#fecaca"}`, borderRadius: 6, cursor: "pointer", fontSize: 13, color: row.isArchived ? "#1d4ed8" : "#dc2626", padding: 0 }}
+                      >
+                        {row.isArchived ? "↺" : "⨯"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!filteredRows.length && (
+                  <div style={{ padding: "44px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    <strong style={{ display: "block", marginBottom: 6 }}>No coupons found</strong>
+                    <span>{couponSearch ? "Try a different search term." : "Create a coupon to manage discounts, campaigns, and POS offers."}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#3b82f6", marginTop: 0 }}>{draftCoupon?._isNew ? "Create Coupon" : `Update Coupon: ${editing.code || "Coupon"}`}</h3>
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
+                  <label className="settings-input-group">
+                    <span className="muted">Name</span>
+                    <input
+                      type="text"
+                      value={draftCoupon?.title ?? editing.title}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, title: event.target.value })}
+                      placeholder="e.g. Summer Sale Discount"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Code</span>
+                    <input
+                      type="text"
+                      value={draftCoupon?.code ?? editing.code}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, code: event.target.value.toUpperCase() })}
+                      placeholder="e.g. SUMMER20"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Description</span>
+                    <input
+                      type="text"
+                      value={draftCoupon?.description ?? editing.description ?? ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, description: event.target.value })}
+                      placeholder="Optional description"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Benefit Type</span>
+                    <select
+                      value={draftCoupon?.discountType ?? editing.discountType}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, discountType: event.target.value })}
+                    >
+                      <option value="PERCENT">Percentage</option>
+                      <option value="FIXED">Fixed Amount</option>
+                    </select>
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Benefit Value in {formatMoney(1).replace(/1/g, "") || "₹"}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftCoupon?.discountValue ?? editing.discountValue ?? 0}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, discountValue: Number(event.target.value || 0) })}
+                      placeholder="e.g. 20"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Minimum Amount for Redemption</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftCoupon?.minBillAmount ?? editing.minBillAmount ?? 0}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, minBillAmount: Number(event.target.value || 0) })}
+                      placeholder="e.g. 500"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Coupon Activated Date</span>
+                    <input
+                      type="date"
+                      value={draftCoupon?.startsAt ?? editing.startsAt ? toDateInput(draftCoupon?.startsAt ?? editing.startsAt) : ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, startsAt: event.target.value })}
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Validity End Date</span>
+                    <input
+                      type="date"
+                      value={draftCoupon?.endsAt ?? editing.endsAt ? toDateInput(draftCoupon?.endsAt ?? editing.endsAt) : ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, endsAt: event.target.value })}
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Max Used Count</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftCoupon?.usageLimit ?? editing.usageLimit ?? ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, usageLimit: event.target.value })}
+                      placeholder="Unlimited if empty"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Customer Usage Limit</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={draftCoupon?.customerUsageLimit ?? editing.customerUsageLimit ?? ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, customerUsageLimit: event.target.value })}
+                      placeholder="Per customer"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Branch</span>
+                    <input
+                      type="text"
+                      value={draftCoupon?.branchId ?? editing.branchId ?? ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, branchId: event.target.value })}
+                      placeholder="Optional branch id"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Service</span>
+                    <input
+                      type="text"
+                      value={draftCoupon?.serviceId ?? editing.serviceId ?? ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, serviceId: event.target.value })}
+                      placeholder="Optional service id"
+                    />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Product</span>
+                    <input
+                      type="text"
+                      value={draftCoupon?.productId ?? editing.productId ?? ""}
+                      onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, productId: event.target.value })}
+                      placeholder="Optional product id"
+                    />
+                  </label>
+                </div>
+
+                <div className="settings-toggle-grid" style={{ marginBottom: 16 }}>
+                  <ToggleRow checked={Boolean(draftCoupon?.isReferral ?? editing.isReferral)} label="Referral coupon" onChange={(value) => draftCoupon && setDraftCoupon({ ...draftCoupon, isReferral: value })} />
+                  <ToggleRow checked={Boolean(draftCoupon?.isInfluencer ?? editing.isInfluencer)} label="Influencer coupon" onChange={(value) => draftCoupon && setDraftCoupon({ ...draftCoupon, isInfluencer: value })} />
+                  <ToggleRow checked={Boolean(draftCoupon?.isBirthday ?? editing.isBirthday)} label="Birthday coupon" onChange={(value) => draftCoupon && setDraftCoupon({ ...draftCoupon, isBirthday: value })} />
+                  <ToggleRow checked={Boolean(draftCoupon?.isFestival ?? editing.isFestival)} label="Festival coupon" onChange={(value) => draftCoupon && setDraftCoupon({ ...draftCoupon, isFestival: value })} />
+                </div>
+
+                <div className="settings-panel-card" style={{ marginBottom: 16, background: "#f8fafc" }}>
+                  <div className="settings-panel-header-with-toggle" style={{ borderBottom: "none", marginBottom: 0, paddingBottom: 0 }}>
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Status</h3>
+                    <div className="header-toggle-container">
+                      <label className="toggle-switch-label">
+                        <input
+                          type="checkbox"
+                          checked={!Boolean(draftCoupon?.isArchived ?? editing.isArchived)}
+                          onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, isArchived: !event.target.checked })}
+                        />
+                        <span className="toggle-switch-slider" />
+                      </label>
+                      <span className="toggle-status-text">{Boolean(draftCoupon?.isArchived ?? editing.isArchived) ? "Archived" : "Active"}</span>
+                    </div>
+                  </div>
+                  <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+                    Archived coupons stay in history, but you can keep them out of active redemption workflows.
+                  </div>
+                </div>
+
+                <label className="settings-input-group" style={{ marginBottom: 20 }}>
+                  <span className="muted">Notes</span>
+                  <textarea
+                    rows="4"
+                    value={draftCoupon?.notes ?? editing.notes ?? ""}
+                    onChange={(event) => draftCoupon && setDraftCoupon({ ...draftCoupon, notes: event.target.value })}
+                    placeholder="Optional internal notes"
+                  />
+                </label>
+
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} disabled={saving} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} disabled={saving} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>{saving ? "Saving..." : "Save"}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 420, color: "#94a3b8", fontSize: 14 }}>
+                Select a coupon from the left panel or click "Create New Coupon"
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderPnlIncomeTaxesSection = () => {
+    const rows = [...form.advancedSettings.pnlIncomeTaxes].sort((a, b) => Number(a.slabFrom || 0) - Number(b.slabFrom || 0));
+    const selectedRow = rows.find((row) => row.id === selectedPnlIncomeTaxId) || null;
+    const editing = draftPnlIncomeTax || selectedRow;
+
+    const startCreate = () => {
+      const newId = makeId("taxbucket");
+      setDraftPnlIncomeTax({ id: newId, slabFrom: 0, slabTo: 0, rate: 0, active: true, _isNew: true });
+      setSelectedPnlIncomeTaxId(newId);
+    };
+
+    const startEdit = (row) => {
+      setDraftPnlIncomeTax({ ...row, _isNew: false });
+      setSelectedPnlIncomeTaxId(row.id);
+    };
+
+    const cancelDraft = () => {
+      if (draftPnlIncomeTax?._isNew) setSelectedPnlIncomeTaxId(null);
+      setDraftPnlIncomeTax(null);
+    };
+
+    const saveDraft = () => {
+      if (!draftPnlIncomeTax) return;
+      const { _isNew, ...cleanDraft } = draftPnlIncomeTax;
+      const clean = {
+        ...cleanDraft,
+        slabFrom: Number(cleanDraft.slabFrom || 0),
+        slabTo: Number(cleanDraft.slabTo || 0),
+        rate: Number(cleanDraft.rate || 0),
+        name: cleanDraft.name || `${cleanDraft.slabFrom || 0}-${cleanDraft.slabTo || 0}`
+      };
+      const nextRows = _isNew
+        ? [...form.advancedSettings.pnlIncomeTaxes, clean]
+        : form.advancedSettings.pnlIncomeTaxes.map((row) => (row.id === clean.id ? clean : row));
+      updateArrayCollection("pnlIncomeTaxes", nextRows);
+      setDraftPnlIncomeTax(null);
+      setSelectedPnlIncomeTaxId(clean.id);
+    };
+
+    const deleteRow = (id) => {
+      updateArrayCollection("pnlIncomeTaxes", form.advancedSettings.pnlIncomeTaxes.filter((row) => row.id !== id));
+      if (selectedPnlIncomeTaxId === id) {
+        setSelectedPnlIncomeTaxId(null);
+        setDraftPnlIncomeTax(null);
+      }
+    };
+
+    return (
+      <>
+        <SectionHeader title="PNL Income Taxes" description="Track tax slabs used in PNL and financial reporting." badges={[`${rows.length} entries`]} action={<Link className="secondary-button" to="/admin/services">Open Services</Link>} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          These slabs are kept for finance reporting. Billing tax behavior for services and products stays controlled from Tax Mapping.
+        </div>
+
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ width: 280, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
+              </div>
+              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      background: selectedPnlIncomeTaxId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedPnlIncomeTaxId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}
+                  >
+                    <div style={{ flex: 1 }} onClick={() => { setSelectedPnlIncomeTaxId(row.id); setDraftPnlIncomeTax(null); }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{row.slabFrom} - {row.slabTo}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{row.rate}% {row.active ? "• Active" : "○ Inactive"}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); startEdit(row); }} style={{ width: 28, height: 28, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", color: "#475569" }}>✎</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row.id); }} style={{ width: 28, height: 28, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#3b82f6" }}>{draftPnlIncomeTax?._isNew ? "Create PNL Income Tax Slab" : "Edit PNL Income Tax Slab"}</h3>
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
+                  <label className="settings-input-group">
+                    <span className="muted">Slab From</span>
+                    <input type="number" min="0" value={draftPnlIncomeTax?.slabFrom ?? editing.slabFrom} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, slabFrom: Number(event.target.value || 0) })} placeholder="Enter Tax Slab" />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Slab To</span>
+                    <input type="number" min="0" value={draftPnlIncomeTax?.slabTo ?? editing.slabTo} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, slabTo: Number(event.target.value || 0) })} placeholder="Enter Tax Slab" />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Tax Value</span>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <input type="number" min="0" max="100" value={draftPnlIncomeTax?.rate ?? editing.rate} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, rate: Number(event.target.value || 0) })} placeholder="Enter Tax Value" style={{ flex: 1 }} />
+                      <span style={{ padding: "8px 12px", background: "#f1f5f9", border: "1px solid #e2e8f0", borderLeft: "none", borderRadius: "0 8px 8px 0", fontSize: 13, color: "#475569" }}>%</span>
+                    </div>
+                  </label>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer", marginBottom: 20 }}>
+                  <input type="checkbox" checked={draftPnlIncomeTax?.active ?? editing.active} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, active: event.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+                  Active
+                </label>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Save</button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: "#94a3b8", fontSize: 14 }}>
+                Select an income-tax slab from the left panel or click "Create New"
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
   const renderIncentiveSection = () => {
     const incentive = form.advancedSettings.incentiveSettings;
     return (
@@ -3045,7 +3823,7 @@ export default function SettingsPage() {
       case "crm-segment":
         return renderSegmentSection();
       case "coupons":
-        return renderProgramSection("Coupons", "couponSettings", "Keep coupon behavior controlled centrally while marketing and POS continue using live coupons.", [`${summary.coupons.length} live coupons`], "/admin/coupons");
+        return renderCouponsSection();
       case "referrals":
         return renderReferralSection();
       case "designation":
@@ -3062,65 +3840,9 @@ export default function SettingsPage() {
       case "terms-and-conditions":
         return renderLegalSection("Terms & Conditions", "termsAndConditions");
       case "pnl-categories":
-        return (
-          <>
-            <SectionHeader
-              title="PNL Categories"
-              description="Build your own income and expense buckets for future reports and controls."
-              badges={[`${form.advancedSettings.pnlCategories.length} entries`, `${summary.expenseAccountInjections.length} account injections`]}
-              action={<div className="inline-actions"><Link className="secondary-button" to="/admin/expenses/categories">Expense Types</Link><Link className="secondary-button" to="/admin/expenses/accounts">Ledger Accounts</Link></div>}
-            />
-            <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
-              Non-income active rows are synced into live expense categories, and the linked ledger-accounts workspace now persists owner balance injections from backend settings storage.
-            </div>
-            <div className="settings-list-stack">
-              {form.advancedSettings.pnlCategories.map((row) => (
-                <div key={row.id} className="settings-panel-card">
-                  <div className="settings-form-grid">
-                    <label className="settings-input-group">
-                      <span className="muted">Name</span>
-                      <input type="text" value={row.name} onChange={(event) => { const n = [...form.advancedSettings.pnlCategories]; const idx = n.findIndex((r) => r.id === row.id); n[idx] = { ...n[idx], name: event.target.value }; updateAdvancedObject("pnlCategories", n); }} />
-                    </label>
-                    <label className="settings-input-group">
-                      <span className="muted">Type</span>
-                      <select value={row.type} onChange={(event) => { const n = [...form.advancedSettings.pnlCategories]; const idx = n.findIndex((r) => r.id === row.id); n[idx] = { ...n[idx], type: event.target.value }; updateAdvancedObject("pnlCategories", n); }}>
-                        <option value="Income">Income</option>
-                        <option value="Expense">Expense</option>
-                      </select>
-                    </label>
-                    <label className="settings-input-group">
-                      <span className="muted">Active</span>
-                      <label className="mini-toggle-label">
-                        <input type="checkbox" className="premium-toggle-input" checked={Boolean(row.active)} onChange={(event) => { const n = [...form.advancedSettings.pnlCategories]; const idx = n.findIndex((r) => r.id === row.id); n[idx] = { ...n[idx], active: event.target.checked }; updateAdvancedObject("pnlCategories", n); }} />
-                        <div className="mini-toggle-switch"></div>
-                      </label>
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={() => updateArrayCollection("pnlCategories", [...form.advancedSettings.pnlCategories, { id: makeId("pnl"), name: "", type: "Expense", active: true }])}>Add New</button>
-            <div className="settings-panel-card" style={{ marginTop: 16 }}>
-              <div className="settings-toggle-grid">
-                <ToggleRow
-                  checked={form.advancedSettings.expenseSettings.autoApprove}
-                  label="Auto-approve expenses"
-                  helper="When off, every new expense lands in Pending and only approver roles can approve or reject it."
-                  onChange={(value) => updateAdvancedObject("expenseSettings", { autoApprove: value })}
-                />
-              </div>
-            </div>
-          </>
-        );
+        return renderPnlCategoriesSection();
       case "pnl-income-taxes":
-        return renderSimpleListSection("PNL Income Taxes", "pnlIncomeTaxes", "Track tax buckets used in PNL and financial reporting.", [
-          { key: "name", label: "Name" },
-          { key: "rate", label: "Rate", type: "number" },
-          { key: "active", label: "Active", type: "checkbox" }
-        ], {
-          action: <Link className="secondary-button" to="/admin/services">Open Services</Link>,
-          helper: "The first active income-tax row becomes the salon default tax fallback for services that do not have an explicit tax rate."
-        });
+        return renderPnlIncomeTaxesSection();
       case "incentive":
         return renderIncentiveSection();
       case "footer-content":

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, Filter, Plus, Download, Upload, MoreVertical, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, X, ChevronDown, Trash2, GitMerge, MessageCircle, User, FileText, CreditCard, Gift, Wallet, AlertCircle, Package, Users, UserCog, Tag, Phone, StickyNote, Edit3, CheckCircle, Circle } from "lucide-react";
 import { api } from "../../api/client";
 import IndianPhoneInput from "../../components/IndianPhoneInput";
@@ -68,6 +69,9 @@ const isWithinDateRange = (value, start, end) => {
 };
 
 export default function CustomersPage() {
+  const navigate = useNavigate();
+  const importFileRef = useRef(null);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState(new Set());
   const { formatMoney } = useSalonSettings();
   const [rows, setRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -498,6 +502,60 @@ export default function CustomersPage() {
     } catch {
       alert("Could not export customers");
     }
+  };
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    setLoading(true);
+    try {
+      const res = await api.post("/owner/customers/import", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      });
+      alert(res.data.message || "Import completed successfully!");
+      await load();
+    } catch (error) {
+      alert(formatApiError(error, "Failed to import customers"));
+    } finally {
+      setLoading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleExportSelected = () => {
+    if (selectedCustomerIds.size === 0) return;
+    const selectedCustomers = rows.filter(r => selectedCustomerIds.has(r.id));
+    const headers = ["Name", "Phone", "Email", "Gender", "DateOfBirth", "Anniversary", "TotalOrders", "TotalSpend", "AverageSpend", "Advance", "Balance", "ReferralCode"];
+    const csvContent = [
+      headers.join(","),
+      ...selectedCustomers.map(c => [
+        `"${c.name || ''}"`,
+        `"${c.phone || ''}"`,
+        `"${c.email || ''}"`,
+        `"${c.gender || ''}"`,
+        `"${c.dateOfBirth ? new Date(c.dateOfBirth).toISOString().slice(0, 10) : ''}"`,
+        `"${c.anniversary ? new Date(c.anniversary).toISOString().slice(0, 10) : ''}"`,
+        c.totalOrders || 0,
+        c.totalSpend || 0,
+        c.averageSpend || 0,
+        c.advanceAmount || 0,
+        c.balanceAmount || 0,
+        `"${c.referralCode || ''}"`
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Selected_Customers_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleAddGuest = async (event) => {

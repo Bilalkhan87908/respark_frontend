@@ -922,7 +922,7 @@ export default function PosPage() {
               if(!customer) return null;
               
               const activeMembership = customer.memberships?.find(m => String(m.status) === 'ACTIVE' && new Date(m.endsAt) > new Date());
-              const activePackage = (context.customerPackages || []).find(p => p.customerId === customer.id && String(p.status) === 'ACTIVE' && new Date(p.endsAt) > new Date());
+              const activePackage = (customer.packages || []).find(p => String(p.status) === 'ACTIVE' && new Date(p.endsAt) > new Date());
               const cartPackage = form.items.find(i => i.itemType === 'PACKAGE');
               const dueBal = customer.invoices?.filter(inv => inv.status === 'UNPAID' || inv.status === 'PARTIAL').reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0) || 0;
               

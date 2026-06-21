@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar.jsx";
 import Topbar from "./components/Topbar.jsx";
 import { useAuth } from "./context/AuthContext";
@@ -294,6 +294,11 @@ const Home = () => {
   return <OwnerDashboard />;
 };
 
+const InvoiceRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to={`/admin/pos-dashboard/${id}`} replace />;
+};
+
 export default function App() {
   const location = useLocation();
 
@@ -378,7 +383,7 @@ export default function App() {
           <Route path="/admin/trends" element={<OwnerRoute moduleKey="reports" featureKey="reports" element={<TrendsPage />} />} />
           <Route path="/admin/reports-hub" element={<OwnerRoute moduleKey="reports" featureKey="reports" element={<ReportsHubPage />} />} />
           <Route path="/admin/invoices" element={<Navigate to="/admin/pos-dashboard" replace />} />
-          <Route path="/admin/invoices/:id" element={<Navigate to="/admin/pos-dashboard" replace />} />
+          <Route path="/admin/invoices/:id" element={<InvoiceRedirect />} />
           <Route path="/admin/payments" element={<OwnerRoute moduleKey="payments" element={<PaymentsPage />} />} />
           <Route path="/admin/product-categories" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<ProductCategoriesPage />} />} />
           <Route path="/admin/inventory" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<InventoryPage />} />} />

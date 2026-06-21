@@ -1089,7 +1089,7 @@ export default function CustomersPage() {
                     <td>{Number(row.totalSpend || 0) ? formatMoney(row.totalSpend) : "-"}</td>
                     <td>{Number(row.averageSpend || 0) ? formatMoney(row.averageSpend) : "-"}</td>
                     <td>{Number(row.onlineVisits || 0) || "-"}</td>
-                    <td>{Number(row.loyalty || row.loyaltyPoints || 0) || "-"}</td>
+                    <td>{Number(row.loyaltyPoints ?? row.loyalty ?? 0)}</td>
                     <td>{row.referralCode || "-"}</td>
                     <td>{Number(row.advanceAmount || 0) ? formatMoney(row.advanceAmount) : "-"}</td>
                     <td>{Number(row.balanceAmount || 0) ? formatMoney(row.balanceAmount) : "-"}</td>

@@ -1992,6 +1992,292 @@ export default function SettingsPage() {
     );
   };
 
+  const renderPnlCategoriesSection = () => {
+    const rows = [...form.advancedSettings.pnlCategories].sort((a, b) => Number(a.sequenceNumber || 0) - Number(b.sequenceNumber || 0));
+    const selectedRow = rows.find((row) => row.id === selectedPnlCategoryId) || null;
+    const editing = draftPnlCategory || selectedRow;
+
+    const startCreate = () => {
+      const newId = makeId("pnl");
+      setDraftPnlCategory({
+        id: newId,
+        name: "",
+        type: "Expense",
+        sequenceNumber: rows.length + 1,
+        active: true,
+        _isNew: true
+      });
+      setSelectedPnlCategoryId(newId);
+    };
+
+    const startEdit = (row) => {
+      setDraftPnlCategory({ ...row, _isNew: false });
+      setSelectedPnlCategoryId(row.id);
+    };
+
+    const cancelDraft = () => {
+      if (draftPnlCategory?._isNew) setSelectedPnlCategoryId(null);
+      setDraftPnlCategory(null);
+    };
+
+    const saveDraft = () => {
+      if (!draftPnlCategory?.name?.trim()) return;
+      const { _isNew, ...cleanDraft } = draftPnlCategory;
+      const clean = {
+        ...cleanDraft,
+        sequenceNumber: Number(cleanDraft.sequenceNumber || 0)
+      };
+      const nextRows = _isNew
+        ? [...form.advancedSettings.pnlCategories, clean]
+        : form.advancedSettings.pnlCategories.map((row) => (row.id === clean.id ? clean : row));
+      updateArrayCollection("pnlCategories", nextRows);
+      setDraftPnlCategory(null);
+      setSelectedPnlCategoryId(clean.id);
+    };
+
+    const deleteRow = (id) => {
+      updateArrayCollection("pnlCategories", form.advancedSettings.pnlCategories.filter((row) => row.id !== id));
+      if (selectedPnlCategoryId === id) {
+        setSelectedPnlCategoryId(null);
+        setDraftPnlCategory(null);
+      }
+    };
+
+    return (
+      <>
+        <SectionHeader
+          title="PNL Categories"
+          description="Define ordered PNL buckets used for finance structure, reporting sections, and downstream expense mapping."
+          badges={[`${rows.length} entries`, `${summary.expenseAccountInjections.length} account injections`]}
+          action={<div className="inline-actions"><Link className="secondary-button" to="/admin/expenses/categories">Expense Types</Link><Link className="secondary-button" to="/admin/expenses/accounts">Ledger Accounts</Link></div>}
+        />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Non-income active rows continue syncing into the expenses workspace, while sequence numbers define the display order used in PNL-style views.
+        </div>
+
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ width: 320, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#14b8a6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
+              </div>
+              <div style={{ maxHeight: 480, overflowY: "auto" }}>
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      background: selectedPnlCategoryId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedPnlCategoryId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}
+                  >
+                    <div style={{ flex: 1 }} onClick={() => { setSelectedPnlCategoryId(row.id); setDraftPnlCategory(null); }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{row.name || "Untitled category"}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                        Seq {row.sequenceNumber} • {row.type} {row.active ? "• Active" : "○ Inactive"}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); startEdit(row); }} style={{ width: 28, height: 28, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", color: "#475569" }}>✎</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row.id); }} style={{ width: 28, height: 28, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#14b8a6" }}>{draftPnlCategory?._isNew ? "Create PNL Category" : "Edit PNL Category"}</h3>
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
+                  <label className="settings-input-group">
+                    <span className="muted">Category Name</span>
+                    <input value={draftPnlCategory?.name ?? editing.name} onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, name: event.target.value })} placeholder="Enter Name" />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Category Sequence Number</span>
+                    <input type="number" min="1" value={draftPnlCategory?.sequenceNumber ?? editing.sequenceNumber} onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, sequenceNumber: Number(event.target.value || 0) })} />
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 32, marginBottom: 16, flexWrap: "wrap" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer" }}>
+                    <input type="checkbox" checked={draftPnlCategory?.active ?? editing.active} onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, active: event.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+                    Active
+                  </label>
+                  <label className="settings-input-group" style={{ minWidth: 240 }}>
+                    <span className="muted">Type</span>
+                    <select value={draftPnlCategory?.type ?? editing.type} onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, type: event.target.value })}>
+                      <option value="Income">Income</option>
+                      <option value="Expense">Expense</option>
+                      <option value="Computed">Computed</option>
+                      <option value="Tax">Tax</option>
+                    </select>
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Save</button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: "#94a3b8", fontSize: 14 }}>
+                Select a category from the left panel or click "Create New"
+              </div>
+            )}
+
+            <div className="settings-panel-card" style={{ marginTop: 16 }}>
+              <div className="settings-toggle-grid">
+                <ToggleRow
+                  checked={form.advancedSettings.expenseSettings.autoApprove}
+                  label="Auto-approve expenses"
+                  helper="When off, every new expense lands in Pending and only approver roles can approve or reject it."
+                  onChange={(value) => updateAdvancedObject("expenseSettings", { autoApprove: value })}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const renderPnlIncomeTaxesSection = () => {
+    const rows = [...form.advancedSettings.pnlIncomeTaxes].sort((a, b) => Number(a.slabFrom || 0) - Number(b.slabFrom || 0));
+    const selectedRow = rows.find((row) => row.id === selectedPnlIncomeTaxId) || null;
+    const editing = draftPnlIncomeTax || selectedRow;
+
+    const startCreate = () => {
+      const newId = makeId("taxbucket");
+      setDraftPnlIncomeTax({ id: newId, slabFrom: 0, slabTo: 0, rate: 0, active: true, _isNew: true });
+      setSelectedPnlIncomeTaxId(newId);
+    };
+
+    const startEdit = (row) => {
+      setDraftPnlIncomeTax({ ...row, _isNew: false });
+      setSelectedPnlIncomeTaxId(row.id);
+    };
+
+    const cancelDraft = () => {
+      if (draftPnlIncomeTax?._isNew) setSelectedPnlIncomeTaxId(null);
+      setDraftPnlIncomeTax(null);
+    };
+
+    const saveDraft = () => {
+      if (!draftPnlIncomeTax) return;
+      const { _isNew, ...cleanDraft } = draftPnlIncomeTax;
+      const clean = {
+        ...cleanDraft,
+        slabFrom: Number(cleanDraft.slabFrom || 0),
+        slabTo: Number(cleanDraft.slabTo || 0),
+        rate: Number(cleanDraft.rate || 0),
+        name: cleanDraft.name || `${cleanDraft.slabFrom || 0}-${cleanDraft.slabTo || 0}`
+      };
+      const nextRows = _isNew
+        ? [...form.advancedSettings.pnlIncomeTaxes, clean]
+        : form.advancedSettings.pnlIncomeTaxes.map((row) => (row.id === clean.id ? clean : row));
+      updateArrayCollection("pnlIncomeTaxes", nextRows);
+      setDraftPnlIncomeTax(null);
+      setSelectedPnlIncomeTaxId(clean.id);
+    };
+
+    const deleteRow = (id) => {
+      updateArrayCollection("pnlIncomeTaxes", form.advancedSettings.pnlIncomeTaxes.filter((row) => row.id !== id));
+      if (selectedPnlIncomeTaxId === id) {
+        setSelectedPnlIncomeTaxId(null);
+        setDraftPnlIncomeTax(null);
+      }
+    };
+
+    return (
+      <>
+        <SectionHeader title="PNL Income Taxes" description="Track tax slabs used in PNL and financial reporting." badges={[`${rows.length} entries`]} action={<Link className="secondary-button" to="/admin/services">Open Services</Link>} />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          These slabs are kept for finance reporting. Billing tax behavior for services and products stays controlled from Tax Mapping.
+        </div>
+
+        <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ width: 280, flexShrink: 0 }}>
+            <div className="settings-panel-card" style={{ padding: 0 }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
+              </div>
+              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                {rows.map((row) => (
+                  <div
+                    key={row.id}
+                    style={{
+                      padding: "14px 16px",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      background: selectedPnlIncomeTaxId === row.id ? "#eff6ff" : "white",
+                      borderLeft: selectedPnlIncomeTaxId === row.id ? "3px solid #3b82f6" : "3px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}
+                  >
+                    <div style={{ flex: 1 }} onClick={() => { setSelectedPnlIncomeTaxId(row.id); setDraftPnlIncomeTax(null); }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{row.slabFrom} - {row.slabTo}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{row.rate}% {row.active ? "• Active" : "○ Inactive"}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); startEdit(row); }} style={{ width: 28, height: 28, background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, cursor: "pointer", color: "#475569" }}>✎</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); deleteRow(row.id); }} style={{ width: 28, height: 28, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", color: "#dc2626" }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="settings-panel-card">
+                <h3 style={{ color: "#3b82f6" }}>{draftPnlIncomeTax?._isNew ? "Create PNL Income Tax Slab" : "Edit PNL Income Tax Slab"}</h3>
+                <div className="settings-form-grid" style={{ marginBottom: 16 }}>
+                  <label className="settings-input-group">
+                    <span className="muted">Slab From</span>
+                    <input type="number" min="0" value={draftPnlIncomeTax?.slabFrom ?? editing.slabFrom} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, slabFrom: Number(event.target.value || 0) })} placeholder="Enter Tax Slab" />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Slab To</span>
+                    <input type="number" min="0" value={draftPnlIncomeTax?.slabTo ?? editing.slabTo} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, slabTo: Number(event.target.value || 0) })} placeholder="Enter Tax Slab" />
+                  </label>
+                  <label className="settings-input-group">
+                    <span className="muted">Tax Value</span>
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <input type="number" min="0" max="100" value={draftPnlIncomeTax?.rate ?? editing.rate} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, rate: Number(event.target.value || 0) })} placeholder="Enter Tax Value" style={{ flex: 1 }} />
+                      <span style={{ padding: "8px 12px", background: "#f1f5f9", border: "1px solid #e2e8f0", borderLeft: "none", borderRadius: "0 8px 8px 0", fontSize: 13, color: "#475569" }}>%</span>
+                    </div>
+                  </label>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155", cursor: "pointer", marginBottom: 20 }}>
+                  <input type="checkbox" checked={draftPnlIncomeTax?.active ?? editing.active} onChange={(event) => draftPnlIncomeTax && setDraftPnlIncomeTax({ ...draftPnlIncomeTax, active: event.target.checked })} style={{ width: 18, height: 18, accentColor: "#3b82f6", cursor: "pointer" }} />
+                  Active
+                </label>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+                  <button type="button" onClick={cancelDraft} style={{ padding: "10px 24px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: 13 }}>Cancel</button>
+                  <button type="button" onClick={saveDraft} style={{ padding: "10px 24px", background: "#3b82f6", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Save</button>
+                </div>
+              </div>
+            ) : (
+              <div className="settings-panel-card" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: "#94a3b8", fontSize: 14 }}>
+                Select an income-tax slab from the left panel or click "Create New"
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
+
   const renderLoyaltySettingsSection = () => {
     const loyalty = form.advancedSettings.loyaltySettings;
     const u = (patch) => updateAdvancedObject("loyaltySettings", patch);
@@ -2875,65 +3161,9 @@ export default function SettingsPage() {
       case "terms-and-conditions":
         return renderLegalSection("Terms & Conditions", "termsAndConditions");
       case "pnl-categories":
-        return (
-          <>
-            <SectionHeader
-              title="PNL Categories"
-              description="Build your own income and expense buckets for future reports and controls."
-              badges={[`${form.advancedSettings.pnlCategories.length} entries`, `${summary.expenseAccountInjections.length} account injections`]}
-              action={<div className="inline-actions"><Link className="secondary-button" to="/admin/expenses/categories">Expense Types</Link><Link className="secondary-button" to="/admin/expenses/accounts">Ledger Accounts</Link></div>}
-            />
-            <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
-              Non-income active rows are synced into live expense categories, and the linked ledger-accounts workspace now persists owner balance injections from backend settings storage.
-            </div>
-            <div className="settings-list-stack">
-              {form.advancedSettings.pnlCategories.map((row) => (
-                <div key={row.id} className="settings-panel-card">
-                  <div className="settings-form-grid">
-                    <label className="settings-input-group">
-                      <span className="muted">Name</span>
-                      <input type="text" value={row.name} onChange={(event) => { const n = [...form.advancedSettings.pnlCategories]; const idx = n.findIndex((r) => r.id === row.id); n[idx] = { ...n[idx], name: event.target.value }; updateAdvancedObject("pnlCategories", n); }} />
-                    </label>
-                    <label className="settings-input-group">
-                      <span className="muted">Type</span>
-                      <select value={row.type} onChange={(event) => { const n = [...form.advancedSettings.pnlCategories]; const idx = n.findIndex((r) => r.id === row.id); n[idx] = { ...n[idx], type: event.target.value }; updateAdvancedObject("pnlCategories", n); }}>
-                        <option value="Income">Income</option>
-                        <option value="Expense">Expense</option>
-                      </select>
-                    </label>
-                    <label className="settings-input-group">
-                      <span className="muted">Active</span>
-                      <label className="mini-toggle-label">
-                        <input type="checkbox" className="premium-toggle-input" checked={Boolean(row.active)} onChange={(event) => { const n = [...form.advancedSettings.pnlCategories]; const idx = n.findIndex((r) => r.id === row.id); n[idx] = { ...n[idx], active: event.target.checked }; updateAdvancedObject("pnlCategories", n); }} />
-                        <div className="mini-toggle-switch"></div>
-                      </label>
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={() => updateArrayCollection("pnlCategories", [...form.advancedSettings.pnlCategories, { id: makeId("pnl"), name: "", type: "Expense", active: true }])}>Add New</button>
-            <div className="settings-panel-card" style={{ marginTop: 16 }}>
-              <div className="settings-toggle-grid">
-                <ToggleRow
-                  checked={form.advancedSettings.expenseSettings.autoApprove}
-                  label="Auto-approve expenses"
-                  helper="When off, every new expense lands in Pending and only approver roles can approve or reject it."
-                  onChange={(value) => updateAdvancedObject("expenseSettings", { autoApprove: value })}
-                />
-              </div>
-            </div>
-          </>
-        );
+        return renderPnlCategoriesSection();
       case "pnl-income-taxes":
-        return renderSimpleListSection("PNL Income Taxes", "pnlIncomeTaxes", "Track tax buckets used in PNL and financial reporting.", [
-          { key: "name", label: "Name" },
-          { key: "rate", label: "Rate", type: "number" },
-          { key: "active", label: "Active", type: "checkbox" }
-        ], {
-          action: <Link className="secondary-button" to="/admin/services">Open Services</Link>,
-          helper: "The first active income-tax row becomes the salon default tax fallback for services that do not have an explicit tax rate."
-        });
+        return renderPnlIncomeTaxesSection();
       case "incentive":
         return renderIncentiveSection();
       case "footer-content":

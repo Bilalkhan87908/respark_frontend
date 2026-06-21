@@ -383,15 +383,18 @@ export default function CustomersPage() {
   const handleIssueGiftCard = async () => {
     if (!giftCardForm.code || !giftCardForm.amount || !selectedCustomer) return;
     try {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + (Number(giftCardForm.validityDays) || 365));
+
       await api.post("/owner/gift-cards", {
         customerId: selectedCustomer.id,
         code: giftCardForm.code,
         title: giftCardForm.title || "Gift Card",
         originalAmount: Number(giftCardForm.amount),
-        validityDays: Number(giftCardForm.validityDays) || 30,
+        expiresAt: expiresAt.toISOString().split("T")[0],
       });
       setShowGiftCardModal(false);
-      setGiftCardForm({ code: "", title: "", amount: "", validityDays: 30 });
+      setGiftCardForm({ code: "", title: "", amount: "", validityDays: 365 });
       fetchCustomerGiftCards(selectedCustomer.id);
     } catch (e) {
       alert("Failed to issue gift card");
@@ -1390,7 +1393,15 @@ export default function CustomersPage() {
                               </div>
                             ))
                           )}
-                          <button className="cust-assign-btn" onClick={() => setShowGiftCardModal(true)}>
+                          <button className="cust-assign-btn" onClick={() => {
+                            setGiftCardForm({
+                              code: "GC-" + Math.floor(100000 + Math.random() * 900000),
+                              title: "Gift Card",
+                              amount: "",
+                              validityDays: 365
+                            });
+                            setShowGiftCardModal(true);
+                          }}>
                             <Gift size={16} /> Issue Gift Card
                           </button>
                         </div>

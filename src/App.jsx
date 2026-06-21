@@ -41,6 +41,7 @@ const ExpertsPage = lazy(() => import("./pages/owner/ExpertsPage.jsx"));
 const StaffRolesPage = lazy(() => import("./pages/owner/StaffRolesPage.jsx"));
 const ReportsPage = lazy(() => import("./pages/owner/ReportsPage.jsx"));
 const PosPage = lazy(() => import("./pages/owner/PosPage.jsx"));
+const InvoicesPage = lazy(() => import("./pages/owner/InvoicesPage.jsx"));
 const PosDashboardPage = lazy(() => import("./pages/owner/PosDashboardPage.jsx"));
 const PaymentsPage = lazy(() => import("./pages/owner/PaymentsPage.jsx"));
 const TrendsPage = lazy(() => import("./pages/owner/TrendsPage.jsx"));
@@ -368,8 +369,8 @@ export default function App() {
           <Route path="/admin/pos-dashboard/:id" element={<OwnerRoute moduleKey="orders" featureKey="onlineOrders" element={<PosDashboardPage />} />} />
           <Route path="/admin/trends" element={<OwnerRoute moduleKey="reports" featureKey="reports" element={<TrendsPage />} />} />
           <Route path="/admin/reports-hub" element={<OwnerRoute moduleKey="reports" featureKey="reports" element={<ReportsHubPage />} />} />
-          <Route path="/admin/invoices" element={<Navigate to="/admin/pos-dashboard" replace />} />
-          <Route path="/admin/invoices/:id" element={<Navigate to="/admin/pos-dashboard" replace />} />
+          <Route path="/admin/invoices" element={<OwnerRoute moduleKey="pos" element={<InvoicesPage />} />} />
+          <Route path="/admin/invoices/:id" element={<OwnerRoute moduleKey="pos" element={<InvoicesPage />} />} />
           <Route path="/admin/payments" element={<OwnerRoute moduleKey="payments" element={<PaymentsPage />} />} />
           <Route path="/admin/product-categories" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<ProductCategoriesPage />} />} />
           <Route path="/admin/inventory" element={<OwnerRoute moduleKey="inventory" featureKey="inventory" element={<InventoryPage />} />} />

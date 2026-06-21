@@ -364,7 +364,7 @@ export default function PosPage() {
       return assignedServiceIds.length === 0 || assignedServiceIds.includes(service.id);
     });
     setForm(c => {
-      const activeItems = c.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId);
+      const activeItems = c.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId || item.giftCardId || item.itemType === "GIFT_CARD");
       const next = { ...c };
       next.items = [
         ...activeItems,
@@ -385,7 +385,7 @@ export default function PosPage() {
 
   const addQuickProduct = (product) => {
     setForm(c => {
-      const activeItems = c.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId);
+      const activeItems = c.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId || item.giftCardId || item.itemType === "GIFT_CARD");
       const next = { ...c };
       next.items = [...activeItems, {
         ...emptyProductItem,
@@ -616,10 +616,11 @@ export default function PosPage() {
     const mem = memModalMem;
     setForm(c => ({
       ...c,
-      items: [...c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId), {
+      items: [...c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId || i.giftCardId || i.itemType === "GIFT_CARD"), {
         itemType: "MEMBERSHIP",
         membershipPlanId: mem?.id || "",
         name: mem?.name || "Membership",
+        serviceName: mem?.name || "Membership",
         staffUserSalonId: memDraft.staffId || "",
         qty: 1,
         unitPrice: Number(memDraft.price || 0),
@@ -640,10 +641,11 @@ export default function PosPage() {
     const gc = gcModalGc;
     setForm(c => ({
       ...c,
-      items: [...c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId), {
+      items: [...c.items.filter(i => i.serviceId || i.productId || i.membershipPlanId || i.packageId || i.giftCardId || i.itemType === "GIFT_CARD"), {
         itemType: "GIFT_CARD",
         giftCardId: gc?.id || "",
         name: gc?.name || "Gift Card",
+        serviceName: gc?.name || "Gift Card",
         staffUserSalonId: gcDraft.staffId || "",
         qty: 1,
         unitPrice: Number(gcDraft.price || 0),
@@ -653,6 +655,7 @@ export default function PosPage() {
         taxPct: 0,
         validityDays: Number(gcDraft.validityDays || 30),
         purchaseDate: gcDraft.purchaseDate,
+        gcCode: gcDraft.code || undefined,
         isCustom: true
       }]
     }));
@@ -705,7 +708,7 @@ export default function PosPage() {
   const validateBeforeSubmit = useCallback((mode) => {
     if (!form.customerId) return "Please select a guest.";
     if (!form.branchId) return "Please select a branch.";
-    const activeItems = form.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId);
+    const activeItems = form.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId || item.giftCardId || item.itemType === "GIFT_CARD");
     if (!activeItems.length) return "Please add at least one item to the invoice.";
     for (const item of activeItems) {
       if (item.itemType === "SERVICE") {
@@ -715,6 +718,7 @@ export default function PosPage() {
       if (item.itemType === "PRODUCT" && !item.productId) return "Please select a valid product.";
       if (item.itemType === "MEMBERSHIP" && !item.membershipPlanId) return "Please select a membership plan.";
       if (item.itemType === "PACKAGE" && !item.packageId) return "Please select a package.";
+      if (item.itemType === "GIFT_CARD" && !item.giftCardId) return "Please select a gift card.";
       if (Number(item.qty || 0) <= 0) return "Quantity must be greater than zero.";
     }
     if (mode === "complete") {
@@ -726,7 +730,7 @@ export default function PosPage() {
   }, [form, totals.total]);
 
   const buildInvoicePayload = useCallback((mode) => {
-    const activeItems = form.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId);
+    const activeItems = form.items.filter((item) => item.serviceId || item.productId || item.membershipPlanId || item.packageId || item.giftCardId || item.itemType === "GIFT_CARD");
     
     let finalPayments = [];
     if (mode === "complete") {
@@ -1098,7 +1102,7 @@ export default function PosPage() {
               if(!customer) return null;
               
               const activeMembership = customer.memberships?.find(m => String(m.status) === 'ACTIVE' && new Date(m.endsAt) > new Date());
-              const activePackage = (context.customerPackages || []).find(p => p.customerId === customer.id && String(p.status) === 'ACTIVE' && new Date(p.endsAt) > new Date());
+              const activePackage = customer.packages?.find(p => String(p.status) === 'ACTIVE' && new Date(p.endsAt) > new Date());
               const cartPackage = form.items.find(i => i.itemType === 'PACKAGE');
               const dueBal = customer.invoices?.filter(inv => inv.status === 'UNPAID' || inv.status === 'PARTIAL').reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0) || 0;
               
@@ -1157,14 +1161,16 @@ export default function PosPage() {
                 </thead>
                 <tbody>
                   {form.items.map((item, index) => {
-                    if (!item.serviceId && !item.productId && !item.membershipPlanId && !item.packageId) return null;
+                    if (!item.serviceId && !item.productId && !item.membershipPlanId && !item.packageId && !item.giftCardId && item.itemType !== "GIFT_CARD") return null;
                     const baseObj = item.itemType === "PRODUCT"
                       ? productLookup[item.productId]
                       : item.itemType === "MEMBERSHIP"
                         ? membershipLookup[item.membershipPlanId]
                         : item.itemType === "PACKAGE"
                           ? packageLookup[item.packageId]
-                          : serviceLookup[item.serviceId];
+                          : item.itemType === "GIFT_CARD"
+                            ? { name: item.name || "Gift Card" }
+                            : serviceLookup[item.serviceId];
                     if (!baseObj) return null;
                     const basePrice = getCatalogBasePrice(item);
                     const originalPrice = basePrice;
@@ -1177,7 +1183,7 @@ export default function PosPage() {
                       <tr key={index}>
                         <td style={{ color: "#334155" }}>{baseObj.name}</td>
                         <td>
-                          {item.itemType === "SERVICE" || item.itemType === "PACKAGE" || item.itemType === "MEMBERSHIP" ? (
+                          {item.itemType === "SERVICE" || item.itemType === "PACKAGE" || item.itemType === "MEMBERSHIP" || item.itemType === "GIFT_CARD" ? (
                             <select className="pos-cart-select" value={item.staffUserSalonId || item.staffUserId || ""} onChange={(e) => updateItem(index, { staffUserSalonId: e.target.value, staffUserId: e.target.value })}>
                               <option value="">Assign staff</option>
                               {getEligibleStaffUsers(item).map((u) => <option key={u.id} value={u.id}>{u.user?.name}</option>)}
@@ -1191,8 +1197,8 @@ export default function PosPage() {
                             className="pos-cart-input"
                             type="number"
                             min="1"
-                            value={item.itemType === "MEMBERSHIP" || item.itemType === "PACKAGE" ? 1 : item.qty}
-                            disabled={item.itemType === "MEMBERSHIP" || item.itemType === "PACKAGE"}
+                            value={item.itemType === "MEMBERSHIP" || item.itemType === "PACKAGE" || item.itemType === "GIFT_CARD" ? 1 : item.qty}
+                            disabled={item.itemType === "MEMBERSHIP" || item.itemType === "PACKAGE" || item.itemType === "GIFT_CARD"}
                             onChange={(e) => updateItem(index, { qty: Number(e.target.value || 1) })}
                           />
                         </td>
@@ -1235,7 +1241,7 @@ export default function PosPage() {
                       </tr>
                     );
                   })}
-                   {form.items.filter(item => item.serviceId || item.productId || item.membershipPlanId || item.packageId).length === 0 && (
+                   {form.items.filter(item => item.serviceId || item.productId || item.membershipPlanId || item.packageId || item.giftCardId || item.itemType === "GIFT_CARD").length === 0 && (
                     <tr>
                       <td colSpan="10" style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>
                         No items added yet. Click a service or product on the left to add.
@@ -1442,66 +1448,99 @@ export default function PosPage() {
             </div>
             
             <div style={{ padding:"24px", display:"flex", flexDirection:"column", gap:24, flex:1 }}>
-              {/* GiftCard Grid */}
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:16, maxHeight:300, overflowY:"auto", paddingRight:8 }}>
-                {(() => {
-                  const raw = context.settings?.advancedSettings;
-                  const adv = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return {}; } })() : (raw || {});
-                  const templates = (adv?.giftCardSettings?.templates && adv.giftCardSettings.templates.length)
-                    ? adv.giftCardSettings.templates
-                    : [
-                        { name: "Birthday Voucher", description: "Special birthday gift card for loyal customers", amount: 1000, validityDays: 90, renewalReminderDays: 7 },
-                        { name: "Festive Special", description: "Limited edition festive season gift card", amount: 2500, validityDays: 180, renewalReminderDays: 14 },
-                        { name: "Premium Package", description: "High-value gift card for premium services", amount: 5000, validityDays: 365, renewalReminderDays: 30 }
-                      ];
-                  return templates.filter(g => (g.name || "").toLowerCase().includes(gcSearch.toLowerCase())).map((gc, idx) => {
-                  const isSelected = gcModalGc?.name === gc.name && gcModalGc?.id !== "CUSTOM";
-                  return (
-                    <div key={idx} onClick={() => {
-                      setGcModalGc({ id: `tpl-${idx}`, name: gc.name });
-                      setGcDraft({ staffId: "", price: String(gc.amount || ""), validityDays: String(gc.validityDays || 30), purchaseDate: new Date().toISOString().slice(0,10) });
-                    }} style={{ background: isSelected?"#fdf4ff":"#f8fafc", border: isSelected?"2px solid #e879f9":"1px solid #e2e8f0", borderRadius:12, padding:16, cursor:"pointer", transition:"all 0.2s" }}>
-                      <div style={{ fontSize:"0.95rem", fontWeight:700, color:"#3b82f6", marginBottom:8, textTransform:"uppercase" }}>{gc.name || "GIFT CARD"}</div>
-                      <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Amount: {formatMoney(Number(gc.amount || 0))}</div>
-                      <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Validity: {gc.validityDays || 30} Days</div>
-                    </div>
-                  );
-                });
-                })()}
-              </div>
+               {/* GiftCard Grid */}
+               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:16, maxHeight:300, overflowY:"auto", paddingRight:8 }}>
+                 {(() => {
+                   const raw = context.settings?.advancedSettings;
+                   const adv = typeof raw === "string" ? (() => { try { return JSON.parse(raw); } catch { return {}; } })() : (raw || {});
+                   const templates = (adv?.giftCardSettings?.templates && adv.giftCardSettings.templates.length)
+                     ? adv.giftCardSettings.templates
+                     : [
+                         { name: "Birthday Voucher", description: "Special birthday gift card for loyal customers", amount: 1000, validityDays: 90, renewalReminderDays: 7 },
+                         { name: "Festive Special", description: "Limited edition festive season gift card", amount: 2500, validityDays: 180, renewalReminderDays: 14 },
+                         { name: "Premium Package", description: "High-value gift card for premium services", amount: 5000, validityDays: 365, renewalReminderDays: 30 }
+                       ];
+                   const filtered = templates.filter(g => (g.name || "").toLowerCase().includes(gcSearch.toLowerCase()));
+                   return (
+                     <>
+                       {filtered.map((gc, idx) => {
+                         const isSelected = gcModalGc?.name === gc.name && gcModalGc?.id !== "CUSTOM";
+                         return (
+                           <div key={idx} onClick={() => {
+                             setGcModalGc({ id: `tpl-${idx}`, name: gc.name });
+                             setGcDraft({ staffId: gcDraft.staffId || "", price: String(gc.amount || ""), validityDays: String(gc.validityDays || 30), purchaseDate: new Date().toISOString().slice(0,10), code: "" });
+                           }} style={{ background: isSelected?"#fdf4ff":"#f8fafc", border: isSelected?"2px solid #e879f9":"1px solid #e2e8f0", borderRadius:12, padding:16, cursor:"pointer", transition:"all 0.2s" }}>
+                             <div style={{ fontSize:"0.95rem", fontWeight:700, color:"#3b82f6", marginBottom:8, textTransform:"uppercase" }}>{gc.name || "GIFT CARD"}</div>
+                             <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Amount: {formatMoney(Number(gc.amount || 0))}</div>
+                             <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Validity: {gc.validityDays || 30} Days</div>
+                           </div>
+                         );
+                       })}
+                       <div onClick={() => {
+                         setGcModalGc({ id: "CUSTOM", name: "Custom Gift Card" });
+                         setGcDraft({ staffId: gcDraft.staffId || "", price: "", validityDays: "365", purchaseDate: new Date().toISOString().slice(0,10), code: "" });
+                       }} style={{ background: gcModalGc?.id === "CUSTOM"?"#eff6ff":"#f8fafc", border: gcModalGc?.id === "CUSTOM"?"2px solid #3b82f6":"1px solid #e2e8f0", borderRadius:12, padding:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", minHeight:80, transition:"all 0.2s" }}>
+                         <div style={{ fontSize:"1rem", fontWeight:700, color:"#2563eb", textTransform:"uppercase" }}>CUSTOM GIFT CARD</div>
+                       </div>
+                     </>
+                   );
+                 })()}
+               </div>
 
-              {/* Bottom Form */}
-              <div style={{ display:"flex", gap:16, alignItems:"flex-end", flexWrap:"wrap" }}>
-                <div style={{ flex:1, minWidth:150 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Name</label>
-                  <input readOnly value={gcModalGc ? gcModalGc.name : ""} placeholder="Enter Name" style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", background:"#f8fafc", color:"#94a3b8", boxSizing:"border-box" }} />
-                </div>
-                <div style={{ flex:1, minWidth:120 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Validity</label>
-                  <input type="number" placeholder="Enter Validity" value={gcDraft.validityDays} onChange={e=>setGcDraft(d=>({...d,validityDays:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                </div>
-                <div style={{ flex:1, minWidth:140 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Card Activated From</label>
-                  <input type="date" value={gcDraft.purchaseDate} onChange={e=>setGcDraft(d=>({...d,purchaseDate:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                </div>
-                <div style={{ flex:1, minWidth:120 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Purchase Amount</label>
-                  <input type="number" placeholder="Enter Price" value={gcDraft.price} onChange={e=>setGcDraft(d=>({...d,price:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
-                </div>
-                <div style={{ flex:1.2, minWidth:150 }}>
-                  <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Staff</label>
-                  <select value={gcDraft.staffId} onChange={e=>setGcDraft(d=>({...d,staffId:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }}>
-                    <option value="">Select Staff</option>
-                    {(context.staffUsers || []).map(s => <option key={s.id} value={s.id}>{s.user?.name || s.user?.email || s.id}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
+               {/* Bottom Form */}
+               <div style={{ display:"flex", gap:16, alignItems:"flex-end", flexWrap:"wrap" }}>
+                 <div style={{ flex:1, minWidth:150 }}>
+                   <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Name</label>
+                   <input 
+                     readOnly={gcModalGc?.id !== "CUSTOM"} 
+                     value={gcModalGc ? gcModalGc.name : ""} 
+                     onChange={e => {
+                       const val = e.target.value;
+                       setGcModalGc(prev => prev ? { ...prev, name: val } : null);
+                     }}
+                     placeholder="Enter Name" 
+                     style={{ 
+                       width:"100%", 
+                       padding:"10px 12px", 
+                       border:"1px solid #cbd5e1", 
+                       borderRadius:8, 
+                       fontSize:"0.9rem", 
+                       background: gcModalGc?.id === "CUSTOM" ? "#fff" : "#f8fafc", 
+                       color: gcModalGc?.id === "CUSTOM" ? "#0f172a" : "#94a3b8", 
+                       boxSizing:"border-box" 
+                     }} 
+                   />
+                 </div>
+                 <div style={{ flex:1, minWidth:120 }}>
+                   <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Validity (Days)</label>
+                   <input type="number" placeholder="Enter Validity" value={gcDraft.validityDays} onChange={e=>setGcDraft(d=>({...d,validityDays:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                 </div>
+                 <div style={{ flex:1, minWidth:140 }}>
+                   <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Card Activated From</label>
+                   <input type="date" value={gcDraft.purchaseDate} onChange={e=>setGcDraft(d=>({...d,purchaseDate:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                 </div>
+                 <div style={{ flex:1, minWidth:120 }}>
+                   <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Purchase Amount</label>
+                   <input type="number" placeholder="Enter Price" value={gcDraft.price} onChange={e=>setGcDraft(d=>({...d,price:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                 </div>
+                 <div style={{ flex:1.2, minWidth:150 }}>
+                   <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Card Code (Optional)</label>
+                   <input placeholder="Auto-generated" value={gcDraft.code || ""} onChange={e=>setGcDraft(d=>({...d,code:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }} />
+                 </div>
+                 <div style={{ flex:1.2, minWidth:150 }}>
+                   <label style={{ fontSize:"0.82rem", fontWeight:600, color:"#475569", display:"block", marginBottom:6 }}>Staff</label>
+                   <select value={gcDraft.staffId} onChange={e=>setGcDraft(d=>({...d,staffId:e.target.value}))} style={{ width:"100%", padding:"10px 12px", border:"1px solid #cbd5e1", borderRadius:8, fontSize:"0.9rem", boxSizing:"border-box" }}>
+                     <option value="">Select Staff</option>
+                     {(context.staffUsers || []).map(s => <option key={s.id} value={s.id}>{s.user?.name || s.user?.email || s.id}</option>)}
+                   </select>
+                 </div>
+               </div>
+             </div>
 
-            <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9", display:"flex", justifyContent:"flex-end", gap:12 }}>
-              <button onClick={() => setShowGcModal(false)} style={{ padding:"10px 24px", background:"#fff", border:"1px solid #cbd5e1", borderRadius:8, fontWeight:600, cursor:"pointer", color:"#475569" }}>Cancel</button>
-              <button onClick={handleAddGcToCart} disabled={!gcModalGc || !gcDraft.staffId} style={{ padding:"10px 24px", background:"#2563eb", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:(gcModalGc && gcDraft.staffId)?"pointer":"not-allowed", opacity:(gcModalGc && gcDraft.staffId)?1:0.6 }}>Add Gift Card</button>
-            </div>
+             <div style={{ padding:"16px 24px", borderTop:"1px solid #f1f5f9", display:"flex", justifyContent:"flex-end", gap:12 }}>
+               <button onClick={() => setShowGcModal(false)} style={{ padding:"10px 24px", background:"#fff", border:"1px solid #cbd5e1", borderRadius:8, fontWeight:600, cursor:"pointer", color:"#475569" }}>Cancel</button>
+               <button onClick={handleAddGcToCart} disabled={!gcModalGc || !gcDraft.staffId} style={{ padding:"10px 24px", background:"#2563eb", color:"#fff", border:"none", borderRadius:8, fontWeight:700, cursor:(gcModalGc && gcDraft.staffId)?"pointer":"not-allowed", opacity:(gcModalGc && gcDraft.staffId)?1:0.6 }}>Add Gift Card</button>
+             </div>
           </div>
         </div>
       )}

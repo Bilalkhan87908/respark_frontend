@@ -1118,7 +1118,7 @@ export default function CustomersPage() {
                     <td>{Number(row.totalSpend || 0) ? formatMoney(row.totalSpend) : "-"}</td>
                     <td>{Number(row.averageSpend || 0) ? formatMoney(row.averageSpend) : "-"}</td>
                     <td>{Number(row.onlineVisits || 0) || "-"}</td>
-                    <td>{Number(row.loyalty || row.loyaltyPoints || 0) || "-"}</td>
+                    <td>{Number(row.loyaltyPoints ?? row.loyalty ?? 0)}</td>
                     <td>{row.referralCode || "-"}</td>
                     <td>{Number(row.advanceAmount || 0) ? formatMoney(row.advanceAmount) : "-"}</td>
                     <td>{Number(row.balanceAmount || 0) ? formatMoney(row.balanceAmount) : "-"}</td>
@@ -1645,7 +1645,7 @@ export default function CustomersPage() {
       {/* Assign Membership Modal */}
       {showAssignMembershipModal && (
         <div className="modal-overlay" style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", zIndex: 9999 }}>
-          <div className="modal-content" style={{ width: "min(95vw, 950px)", borderRadius: 20, padding: 0, overflow: "hidden", background: "#fff", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", height: "620px" }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ width: "min(95vw, 950px)", borderRadius: 20, padding: 0, overflow: "hidden", background: "#fff", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", maxHeight: "85vh", height: "auto" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{ padding: "20px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9" }}>
               <div>
@@ -1736,27 +1736,6 @@ export default function CustomersPage() {
                     <div>
                       <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#64748b", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "6px" }}>Selected Plan</div>
                       <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>{selectedPlan.name}</div>
-                    </div>
-
-                    {/* Included Services */}
-                    <div>
-                      <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <CheckCircle size={15} color="#2563eb" /> Included Services
-                      </div>
-
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px", background: "#f8fafc", borderRadius: 12, padding: "12px", border: "1px solid #e2e8f0", maxHeight: "180px", overflowY: "auto" }}>
-                        {(selectedPlan.services || []).map((s, idx) => (
-                          <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff" }}>
-                            <span style={{ fontSize: "0.85rem", color: "#334155", fontWeight: 600 }}>{s.service?.name || s.name || "Service"}</span>
-                            <span style={{ fontSize: "0.75rem", color: "#10b981", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>Included</span>
-                          </div>
-                        ))}
-                        {(selectedPlan.services || []).length === 0 && (
-                          <div style={{ padding: "16px", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem" }}>
-                            No services included
-                          </div>
-                        )}
-                      </div>
                     </div>
 
                     {/* Form Grid */}
@@ -2401,33 +2380,37 @@ export default function CustomersPage() {
         <div className="modal-overlay" onClick={() => setInvoiceSuccessData(null)} style={{ zIndex: 4000 }}>
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: "#fff", borderRadius: "18px", width: "min(92vw, 440px)", boxShadow: "0 24px 60px rgba(0,0,0,0.18)", overflow: "hidden", animation: "modalPop .25s cubic-bezier(.34,1.56,.64,1)" }}
+            style={{ background: "#fff", borderRadius: "20px", width: "min(92vw, 440px)", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", overflow: "hidden", animation: "modalPop .3s cubic-bezier(.34,1.56,.64,1)" }}
           >
-            <style>{`@keyframes modalPop { from { transform:scale(.88); opacity:0; } to { transform:scale(1); opacity:1; } }`}</style>
-            <div style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
-              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,.18)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: "1.8rem" }}>✅</div>
-              <div style={{ color: "#fff", fontSize: "1.15rem", fontWeight: 800 }}>{invoiceSuccessData.type} Assigned!</div>
-              <div style={{ color: "rgba(255,255,255,.8)", fontSize: "0.82rem", marginTop: 4 }}>{invoiceSuccessData.name}</div>
-              <button onClick={() => setInvoiceSuccessData(null)} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: "rgba(255,255,255,.7)", fontSize: "1.4rem", cursor: "pointer" }}>×</button>
+            <style>{`@keyframes modalPop { from { transform:scale(.92); opacity:0; } to { transform:scale(1); opacity:1; } }`}</style>
+            <div style={{ background: "linear-gradient(135deg, #0ea5e9, #0284c7)", padding: "30px 24px 24px", textAlign: "center", position: "relative" }}>
+              <div style={{ width: 60, height: 60, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: "1.8rem" }}>✅</div>
+              <div style={{ color: "#fff", fontSize: "1.25rem", fontWeight: 800, letterSpacing: "-0.01em" }}>{invoiceSuccessData.type} Assigned!</div>
+              <div style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.85rem", marginTop: 6, fontWeight: 500 }}>{invoiceSuccessData.name}</div>
+              <button onClick={() => setInvoiceSuccessData(null)} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.8)", fontSize: "1.5rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: "50%", transition: "background 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.15)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}>×</button>
             </div>
-            <div style={{ padding: "20px 24px 24px" }}>
+            <div style={{ padding: "24px" }}>
               {invoiceSuccessData.invoice ? (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
-                    <span style={{ fontSize: "1.2rem" }}>🧾</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
+                    <span style={{ fontSize: "1.4rem" }}>🧾</span>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#15803d" }}>Invoice Generated</div>
-                      <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{invoiceSuccessData.invoice.invoiceNumber} · ₹{Number(invoiceSuccessData.invoice.total || 0).toLocaleString("en-IN")}</div>
+                      <div style={{ fontWeight: 750, fontSize: "0.9rem", color: "#0369a1" }}>Invoice Generated</div>
+                      <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>{invoiceSuccessData.invoice.invoiceNumber} · ₹{Number(invoiceSuccessData.invoice.total || 0).toLocaleString("en-IN")}</div>
                     </div>
-                    <div style={{ marginLeft: "auto", fontWeight: 700, fontSize: "0.75rem", padding: "3px 9px", borderRadius: 6, background: invoiceSuccessData.invoice.status === "PAID" ? "#dcfce7" : "#fef9c3", color: invoiceSuccessData.invoice.status === "PAID" ? "#15803d" : "#92400e" }}>{invoiceSuccessData.invoice.status}</div>
+                    <div style={{ marginLeft: "auto", fontWeight: 700, fontSize: "0.75rem", padding: "4px 10px", borderRadius: 8, background: invoiceSuccessData.invoice.status === "PAID" ? "#e0f2fe" : "#fef9c3", color: invoiceSuccessData.invoice.status === "PAID" ? "#0369a1" : "#92400e" }}>{invoiceSuccessData.invoice.status}</div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <button
                       onClick={() => {
+                        const authData = localStorage.getItem("respark_auth");
+                        const token = authData ? JSON.parse(authData).accessToken : "";
                         const base = api.defaults.baseURL?.replace(/\/api\/v1$/, "") || "";
-                        window.open(`${base}/api/v1/owner/invoices/${invoiceSuccessData.invoice.id}/receipt`, "_blank", "noopener,noreferrer");
+                        window.open(`${base}/api/v1/owner/invoices/${invoiceSuccessData.invoice.id}/receipt?token=${token}`, "_blank", "noopener,noreferrer");
                       }}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff", border: "none", borderRadius: 10, padding: "13px", fontWeight: 700, fontSize: "0.88rem", cursor: "pointer" }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "linear-gradient(135deg, #0ea5e9, #0284c7)", color: "#fff", border: "none", borderRadius: 12, padding: "14px", fontWeight: 700, fontSize: "0.9rem", cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s", boxShadow: "0 4px 12px rgba(14,165,233,0.2)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 16px rgba(14,165,233,0.3)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(14,165,233,0.2)"; }}
                     >
                       👁️ View Invoice
                     </button>
@@ -2436,17 +2419,19 @@ export default function CustomersPage() {
                         try { await downloadFromApi(`/owner/invoices/${invoiceSuccessData.invoice.id}/pdf`, { fallbackFilename: `Invoice-${invoiceSuccessData.invoice.invoiceNumber}.pdf` }); }
                         catch { alert("Could not download PDF"); }
                       }}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#f8fafc", color: "#0f172a", border: "1px solid #e2e8f0", borderRadius: 10, padding: "13px", fontWeight: 700, fontSize: "0.88rem", cursor: "pointer" }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#f8fafc", color: "#0f172a", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px", fontWeight: 700, fontSize: "0.9rem", cursor: "pointer", transition: "background 0.2s, transform 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.transform = "none"; }}
                     >
                       ⬇️ Download PDF
                     </button>
-                    <button onClick={() => setInvoiceSuccessData(null)} style={{ background: "transparent", color: "#64748b", border: "none", borderRadius: 10, padding: "10px", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer" }}>Close</button>
+                    <button onClick={() => setInvoiceSuccessData(null)} style={{ background: "transparent", color: "#64748b", border: "none", borderRadius: 12, padding: "12px", fontWeight: 700, fontSize: "0.9rem", cursor: "pointer", transition: "color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.color = "#0f172a"} onMouseLeave={(e) => e.currentTarget.style.color = "#64748b"}>Close</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div style={{ textAlign: "center", color: "#64748b", fontSize: "0.85rem", marginBottom: 18 }}>Assignment successful! Invoice could not be auto-generated — create one from POS.</div>
-                  <button onClick={() => setInvoiceSuccessData(null)} style={{ width: "100%", padding: "12px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: "0.88rem", cursor: "pointer" }}>Done</button>
+                  <div style={{ textAlign: "center", color: "#64748b", fontSize: "0.9rem", marginBottom: 20 }}>Assignment successful! Invoice could not be auto-generated — create one from POS.</div>
+                  <button onClick={() => setInvoiceSuccessData(null)} style={{ width: "100%", padding: "14px", background: "linear-gradient(135deg, #0ea5e9, #0284c7)", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: "0.9rem", cursor: "pointer", boxShadow: "0 4px 12px rgba(14,165,233,0.2)", transition: "transform 0.15s, box-shadow 0.15s" }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 16px rgba(14,165,233,0.3)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(14,165,233,0.2)"; }}>Done</button>
                 </>
               )}
             </div>

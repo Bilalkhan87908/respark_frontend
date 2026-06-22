@@ -719,10 +719,40 @@ export default function CustomersPage() {
   const handleExport = async (format) => {
     setShowExportMenu(false);
     try {
-      await downloadFromApi(`/owner/customers/export?format=${format}`, { fallbackFilename: `Customers.${format}` });
+      await downloadFromApi(`/owner/customers/export`, { params: { format }, fallbackFilename: `Customers.${format === "csv" ? "csv" : "xlsx"}` });
     } catch {
       alert("Could not export customers");
     }
+  };
+
+  const handleImportClick = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv";
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setSavingMessage("Importing Customers...");
+      setSaving(true);
+      try {
+        const response = await api.post("/owner/customers/import", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data"
+          }
+        });
+        alert(response.data.message || "CSV imported successfully!");
+        await load();
+      } catch (err) {
+        alert(formatApiError(err, "Could not import CSV"));
+      } finally {
+        setSaving(false);
+      }
+    };
+    input.click();
   };
 
   const handleAddGuest = async (event) => {
@@ -840,6 +870,10 @@ export default function CustomersPage() {
   });
 
   const totalPages = Math.ceil(visibleRows.length / pageSize) || 1;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, appliedFilters]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -1310,7 +1344,7 @@ export default function CustomersPage() {
         <div className="crm-actions">
           <button className="crm-btn crm-btn-light" onClick={() => setShowFilters(true)}><Filter size={16} /> Filters</button>
           <button className="crm-btn" onClick={() => setShowAddGuest(true)}><Plus size={16} /> Add Guest</button>
-          <button className="crm-btn"><Download size={16} /> Import</button>
+          <button className="crm-btn" onClick={handleImportClick}><Download size={16} /> Import</button>
           <div className="export-dropdown">
             <button className="crm-btn" onClick={() => setShowExportMenu((current) => !current)}><Upload size={16} /> Export <ChevronDown size={16} /></button>
             {showExportMenu && (

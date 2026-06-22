@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../api/client";
+import { downloadFromApi } from "../../utils/download";
 import EmptyState from "../../components/EmptyState";
 import PageLoader from "../../components/PageLoader";
 import { formatApiError } from "../../utils/apiError";
@@ -318,54 +319,45 @@ export default function ServiceCategoriesPage() {
     }
   };
 
-  const handleExport = () => {
-    if (!items.length) {
-      setError("No services to export.");
-      return;
+  const handleExport = async () => {
+    setStatus({ error: "", success: "" });
+    try {
+      setLoading(true);
+      await downloadFromApi("/owner/service-categories/export", { fallbackFilename: `services_export_${new Date().toISOString().slice(0,10)}.csv` });
+      setSuccess("Export downloaded successfully.");
+    } catch (err) {
+      setError(formatApiError(err, "Could not export services"));
+    } finally {
+      setLoading(false);
     }
-    const headers = ["Category", "Subcategory", "Service Name", "Price", "Duration (Min)", "Gender", "Online Booking"];
-    const rows = items.map(s => {
-       const catName = s.category?.parent?.name || "N/A";
-       const subName = s.category?.name || "N/A";
-       return [
-         catName,
-         subName,
-         s.name,
-         s.price,
-         s.durationMin,
-         s.gender || "UNISEX",
-         s.onlineBookingEnabled ? "Yes" : "No"
-       ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",");
-    });
-    const csv = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `services_export_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const handleImportClick = () => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".csv";
-    input.onchange = (e) => {
-      const file = e.target.files[0];
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
       if (!file) return;
+      
+      const formData = new FormData();
+      formData.append("file", file);
+
       setStatus({ error: "", success: "" });
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target.result;
-        const rowsCount = text.split("\n").filter(row => row.trim()).length;
-        setSuccess(`Reading ${Math.max(0, rowsCount - 1)} services from CSV...`);
-        setTimeout(() => {
-           setSuccess("CSV Import processed successfully! (Note: Actual backend bulk-create is simulated for demo)");
-        }, 1500);
-      };
-      reader.readAsText(file);
+      setLoading(true);
+      try {
+        const response = await api.post("/owner/service-categories/import", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data"
+          }
+        });
+        setSuccess(response.data.message || "CSV imported successfully!");
+        await load();
+      } catch (err) {
+        setError(formatApiError(err, "Could not import CSV"));
+      } finally {
+        setLoading(false);
+      }
     };
     input.click();
   };

@@ -332,7 +332,7 @@ export default function PosPage() {
       return { ...current, payments: newPayments };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.customerId, context.customers, form.items?.length, context.settings, form.tax, form.discount]);
+  }, [form.customerId, context.customers, form.items?.length, context.settings, form.discount]);
 
   const serviceCategories = useMemo(() => {
     if (!context.serviceCategories) return [];
@@ -739,9 +739,9 @@ export default function PosPage() {
       }
       return sum + (linePreTax * taxPct) / 100;
     }, 0);
-    const extraTax = Number(form.tax || 0);
+    // Note: form.tax is part of the API payload (extra tax) but always 0 in this UI; per-item taxPct handles all tax.
     const discount = Number(form.discount || 0);
-    const total = subtotal + itemTax + extraTax - discount;
+    const total = subtotal + itemTax - discount;
     const paid = form.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     return { subtotal, itemTax, total, paid, due: Math.max(0, total - paid) };
   }, [form, getCatalogBasePrice, context.settings]);

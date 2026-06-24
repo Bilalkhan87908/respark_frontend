@@ -6,7 +6,7 @@ import { Menu, Settings, FileText, Monitor, Calendar as CalendarIcon, Users, Bar
 export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [salonName, setSalonName] = useState("MySalon");
+  const [salonName, setSalonName] = useState("");
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -601,7 +601,7 @@ export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogou
                   </button>
                 )}
                 <div className="profile-dropdown-version">
-                  You're on Version 35.0.5
+                  Respark ERP v1.0.0
                 </div>
               </div>
             )}

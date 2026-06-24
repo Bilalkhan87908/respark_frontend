@@ -31,7 +31,7 @@ export default function LegalContentPage({ scope = "global", title, contentKey }
           titleText: title,
           content: "",
           supportEmail: response.data?.supportEmail || "",
-          businessName: response.data?.systemName || "Skillify"
+          businessName: response.data?.systemName || "Respark"
         });
       } catch {
         if (!active) return;

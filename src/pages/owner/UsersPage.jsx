@@ -199,7 +199,6 @@ export default function UsersPage() {
       customRoleId: "",
       permissions: preset
     }));
-    void ROLE_OPTIONS.find((r) => r.value === roleCode);
   };
 
   const openAccessControl = () => {

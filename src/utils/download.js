@@ -23,36 +23,33 @@ const getFilenameFromDisposition = (headerValue, fallback) => {
 };
 
 export const downloadFromApi = async (url, { params, fallbackFilename = "download.txt" } = {}) => {
-  console.log("[downloadFromApi] Initiating download for:", url);
   const response = await api.get(url, {
     params,
     responseType: "blob"
   });
 
   // Safe fetch content-disposition from Axios headers (Axios v1.x uses headers.get())
-  const disposition = response.headers?.get 
-    ? response.headers.get("content-disposition") 
+  const disposition = response.headers?.get
+    ? response.headers.get("content-disposition")
     : (response.headers?.["content-disposition"] || response.headers?.["Content-Disposition"]);
-  
-  console.log("[downloadFromApi] Content-Disposition header:", disposition);
+
   const filename = getFilenameFromDisposition(disposition, fallbackFilename);
-  console.log("[downloadFromApi] Resolved filename:", filename);
 
   const contentType = response.headers?.get
     ? response.headers.get("content-type")
     : (response.headers?.["content-type"] || response.headers?.["Content-Type"]);
-  
-  const blob = response.data instanceof Blob 
-    ? response.data 
+
+  const blob = response.data instanceof Blob
+    ? response.data
     : new Blob([response.data], { type: contentType || "application/octet-stream" });
 
   const blobUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = blobUrl;
   link.download = filename;
-  
+
   document.body.appendChild(link);
-  
+
   // Trigger click event
   link.dispatchEvent(new MouseEvent("click", {
     bubbles: true,
@@ -65,7 +62,5 @@ export const downloadFromApi = async (url, { params, fallbackFilename = "downloa
   setTimeout(() => {
     link.remove();
     window.URL.revokeObjectURL(blobUrl);
-    console.log("[downloadFromApi] Revoked object URL and cleaned up link element");
   }, 150);
 };
-

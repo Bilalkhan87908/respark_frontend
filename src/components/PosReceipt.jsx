@@ -99,7 +99,7 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
   const safeInv = invoice || {};
   const items = safeInv.items || [];
   const customer = safeInv.customer || {};
-  const displaySalonName = salonName || "STYLUXE";
+  const displaySalonName = salonName || "";
   const displayAddress = salonAddress || "";
   const displayPhone = salonPhone || "";
   const invDate = safeInv.createdAt ? new Date(safeInv.createdAt) : new Date();
@@ -195,7 +195,7 @@ export default function PosReceipt({ invoice, salonName, salonAddress, salonPhon
 
           <div style={S.footer}>
             <div style={S.thankYou}>Thank You!</div>
-            <div style={S.footerSub}>Visit Again · Powered by Skillify</div>
+            <div style={S.footerSub}>Visit Again</div>
             <FakeBarcode />
             <div style={S.qrBox}><QrCode size={24} /></div>
             <div style={{ fontSize: 9, color: "#cbd5e1", marginTop: 8, letterSpacing: 2, fontFamily: "'JetBrains Mono', monospace" }}>{safeInv.invoiceNumber || "—"}</div>

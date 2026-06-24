@@ -3138,7 +3138,7 @@ export default function CustomersPage() {
       {selectedBillInvoice && (
         <PosReceipt
           invoice={selectedBillInvoice}
-          salonName={auth?.membership?.salon?.name || auth?.membership?.salonName || "Skillify Salon"}
+          salonName={auth?.membership?.salon?.name || auth?.membership?.salonName || ""}
           salonAddress={auth?.membership?.salon?.address || selectedBillInvoice?.branch?.address || selectedBillInvoice?.branch?.name || "Main branch"}
           salonPhone={auth?.membership?.salon?.phone || selectedBillInvoice?.branch?.phone || ""}
           currencyCode={currencyCode}

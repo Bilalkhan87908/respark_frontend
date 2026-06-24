@@ -1114,16 +1114,18 @@ export default function PosDashboardPage() {
             <div style={{ padding:"24px", display:"flex", flexDirection:"column", gap:24, flex:1 }}>
               {/* GiftCard Grid */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(250px, 1fr))", gap:16, maxHeight:300, overflowY:"auto", paddingRight:8 }}>
-                {(posContext.giftCards || []).filter(g => g.code?.toLowerCase().includes(gcSearch.toLowerCase()) || "gift card".includes(gcSearch.toLowerCase())).map(gc => {
+                 {(posContext.giftCards || []).filter(g => g.code?.toLowerCase().includes(gcSearch.toLowerCase()) || "gift card".includes(gcSearch.toLowerCase())).map(gc => {
                   const isSelected = gcModalGc?.id === gc.id;
+                  const gcAmount = Number(gc.originalAmount || gc.balanceAmount || 0);
+                  const gcValidity = gc.expiresAt ? Math.max(0, Math.ceil((new Date(gc.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 30;
                   return (
                     <div key={gc.id} onClick={() => {
                       setGcModalGc({ id: gc.id, name: gc.code || "Gift Card" });
-                      setGcDraft({ staffId: "", price: String(gc.amount||0), validityDays: String(gc.validityDays||30), purchaseDate: new Date().toISOString().slice(0,10) });
+                      setGcDraft({ staffId: "", price: String(gcAmount), validityDays: String(gcValidity || 30), purchaseDate: new Date().toISOString().slice(0,10) });
                     }} style={{ background: isSelected?"#fdf4ff":"#fdf4ff", border: isSelected?"2px solid #e879f9":"1px solid #fdf4ff", borderRadius:12, padding:16, cursor:"pointer", transition:"all 0.2s" }}>
                       <div style={{ fontSize:"0.95rem", fontWeight:700, color: "var(--accent, #3b82f6)", marginBottom:8, textTransform:"uppercase" }}>{gc.code || "GIFT CARD"}</div>
-                      <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Fee: {formatMoney(Number(gc.amount||0))}</div>
-                      <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:12 }}>Validity: {gc.validityDays || 30} Days</div>
+                      <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:4 }}>Fee: {formatMoney(gcAmount)}</div>
+                      <div style={{ fontSize:"0.85rem", color:"#475569", marginBottom:12 }}>Validity: {gcValidity} Days</div>
                     </div>
                   );
                 })}

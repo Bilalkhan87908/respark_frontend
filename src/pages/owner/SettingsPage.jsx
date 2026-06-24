@@ -1222,14 +1222,14 @@ export default function SettingsPage() {
           <div className="appointment-columns-grid">
             <div className="appointment-col">
               <div>
-                <span className="sub-section-title">Send appointment email</span>
+                <span className="sub-section-title">Send appointment notification</span>
                 <label className="checkbox-option">
                   <input
                     type="checkbox"
                     checked={generic.sendAppointmentSms}
                     onChange={(e) => updateGeneric("sendAppointmentSms", e.target.checked)}
                   />
-                  Send email to Guests
+                  Send email/SMS notification to Guests
                 </label>
               </div>
               <div>
@@ -1318,14 +1318,14 @@ export default function SettingsPage() {
           </div>
           <div className="appointment-grid">
             <div className="appointment-col">
-                <span className="sub-section-title">Send feedback email</span>
+                <span className="sub-section-title">Send feedback notification</span>
                 <label className="checkbox-option">
                   <input
                     type="checkbox"
                     checked={form.advancedSettings.feedbackSetting.sendSms}
                     onChange={(e) => updateAdvancedObject("feedbackSetting", { sendSms: e.target.checked })}
                   />
-                  Send email to Guests
+                  Send feedback SMS to Guests
                 </label>
               </div>
               <div className="appointment-col">
@@ -1879,8 +1879,9 @@ export default function SettingsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       updateAdvancedObject("shiftManagement", { shifts });
+                      await saveWorkspace();
                     }}
                     style={{ padding: "10px 32px", background: "var(--button-bg-solid, #3b82f6)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 14 }}
                   >
@@ -2146,7 +2147,7 @@ export default function SettingsPage() {
       }
     };
 
-    const saveDraft = () => {
+    const saveDraft = async () => {
       if (!draftTax) return;
       if (!draftTax.label.trim()) return;
       const { _isNew, ...clean } = draftTax;
@@ -2157,6 +2158,7 @@ export default function SettingsPage() {
       }
       setDraftTax(null);
       setSelectedTaxId(clean.id);
+      await saveWorkspace();
     };
 
     const deleteTax = (id) => {
@@ -2519,7 +2521,7 @@ export default function SettingsPage() {
       setDraftFeedbackType(null);
     };
 
-    const saveDraft = () => {
+    const saveDraft = async () => {
       if (!draftFeedbackType) return;
       const { _isNew, ...cleanDraft } = draftFeedbackType;
       if (!cleanDraft.name.trim()) return;
@@ -2533,6 +2535,7 @@ export default function SettingsPage() {
       updateFeedbackTypes(nextRows);
       setDraftFeedbackType(null);
       setSelectedFeedbackTypeId(clean.id);
+      await saveWorkspace();
     };
 
     const deleteRow = (id) => {
@@ -2558,8 +2561,8 @@ export default function SettingsPage() {
         <div className="settings-panel-card" style={{ marginBottom: 20 }}>
           <div className="settings-toggle-grid">
             <ToggleRow checked={feedback.enabled} label="Enable feedback" onChange={(value) => updateAdvancedObject("feedbackSetting", { enabled: value })} />
-            <ToggleRow checked={feedback.sendSms} label="Send feedback email" onChange={(value) => updateAdvancedObject("feedbackSetting", { sendSms: value })} />
-            <ToggleRow checked={feedback.sendWhatsapp} label="Send follow-up email" onChange={(value) => updateAdvancedObject("feedbackSetting", { sendWhatsapp: value })} />
+            <ToggleRow checked={feedback.sendSms} label="Send feedback SMS" onChange={(value) => updateAdvancedObject("feedbackSetting", { sendSms: value })} />
+            <ToggleRow checked={feedback.sendWhatsapp} label="Send follow-up WhatsApp" onChange={(value) => updateAdvancedObject("feedbackSetting", { sendWhatsapp: value })} />
           </div>
           <div className="settings-form-grid" style={{ marginTop: 18 }}>
             <label className="settings-input-group"><span className="muted">Feedback delay (hours)</span><input type="number" value={feedback.feedbackDelayHours} onChange={(event) => updateAdvancedObject("feedbackSetting", { feedbackDelayHours: Number(event.target.value) })} /></label>
@@ -2678,37 +2681,6 @@ export default function SettingsPage() {
     );
   };
 
-  const renderProgramSection = (title, key, description, stats, linkTo) => {
-    const section = form.advancedSettings[key];
-    return (
-      <>
-        <SectionHeader title={title} description={description} badges={stats} action={linkTo ? <Link className="secondary-button" to={linkTo}>Open Module</Link> : null} />
-        <div className="settings-panel-card">
-          <div className="settings-toggle-grid">
-            <ToggleRow checked={section.enabled} label={`Enable ${title}`} onChange={(value) => updateAdvancedObject(key, { enabled: value })} />
-            {"expiryDays" in section ? <label className="settings-input-group"><span className="muted">Expiry days</span><input type="number" value={section.expiryDays} onChange={(event) => updateAdvancedObject(key, { expiryDays: Number(event.target.value) })} /></label> : null}
-            {"pointsPerCurrency" in section ? <label className="settings-input-group"><span className="muted">Points per currency</span><input type="number" value={section.pointsPerCurrency} onChange={(event) => updateAdvancedObject(key, { pointsPerCurrency: Number(event.target.value) })} /></label> : null}
-            {"minRedeemPoints" in section ? <label className="settings-input-group"><span className="muted">Minimum redeem points</span><input type="number" value={section.minRedeemPoints} onChange={(event) => updateAdvancedObject(key, { minRedeemPoints: Number(event.target.value) })} /></label> : null}
-            {"maxRedeemPercent" in section ? <label className="settings-input-group"><span className="muted">Max redeem %</span><input type="number" value={section.maxRedeemPercent} onChange={(event) => updateAdvancedObject(key, { maxRedeemPercent: Number(event.target.value) })} /></label> : null}
-            {"allowMultipleActivePlans" in section ? <ToggleRow checked={section.allowMultipleActivePlans} label="Allow multiple active plans" onChange={(value) => updateAdvancedObject(key, { allowMultipleActivePlans: value })} /> : null}
-            {"autoRenewReminderDays" in section ? <label className="settings-input-group"><span className="muted">Auto-renew reminder days</span><input type="number" value={section.autoRenewReminderDays} onChange={(event) => updateAdvancedObject(key, { autoRenewReminderDays: Number(event.target.value) })} /></label> : null}
-            {"gracePeriodDays" in section ? <label className="settings-input-group"><span className="muted">Grace period days</span><input type="number" value={section.gracePeriodDays} onChange={(event) => updateAdvancedObject(key, { gracePeriodDays: Number(event.target.value) })} /></label> : null}
-            {"walletCarryForward" in section ? <ToggleRow checked={section.walletCarryForward} label="Wallet carry forward" onChange={(value) => updateAdvancedObject(key, { walletCarryForward: value })} /> : null}
-            {"allowPartialRedeem" in section ? <ToggleRow checked={section.allowPartialRedeem} label="Allow partial redeem" onChange={(value) => updateAdvancedObject(key, { allowPartialRedeem: value })} /> : null}
-            {"expiryReminderDays" in section ? <label className="settings-input-group"><span className="muted">Expiry reminder days</span><input type="number" value={section.expiryReminderDays} onChange={(event) => updateAdvancedObject(key, { expiryReminderDays: Number(event.target.value) })} /></label> : null}
-            {"transferAllowed" in section ? <ToggleRow checked={section.transferAllowed} label="Allow transfer" onChange={(value) => updateAdvancedObject(key, { transferAllowed: value })} /> : null}
-            {"validityDays" in section ? <label className="settings-input-group"><span className="muted">Validity days</span><input type="number" value={section.validityDays} onChange={(event) => updateAdvancedObject(key, { validityDays: Number(event.target.value) })} /></label> : null}
-            {"minimumAmount" in section ? <label className="settings-input-group"><span className="muted">Minimum amount</span><input type="number" value={section.minimumAmount} onChange={(event) => updateAdvancedObject(key, { minimumAmount: Number(event.target.value) })} /></label> : null}
-            {"maximumAmount" in section ? <label className="settings-input-group"><span className="muted">Maximum amount</span><input type="number" value={section.maximumAmount} onChange={(event) => updateAdvancedObject(key, { maximumAmount: Number(event.target.value) })} /></label> : null}
-            {"stackable" in section ? <ToggleRow checked={section.stackable} label="Allow stackable coupons" onChange={(value) => updateAdvancedObject(key, { stackable: value })} /> : null}
-            {"maxDiscountPercent" in section ? <label className="settings-input-group"><span className="muted">Max discount %</span><input type="number" value={section.maxDiscountPercent} onChange={(event) => updateAdvancedObject(key, { maxDiscountPercent: Number(event.target.value) })} /></label> : null}
-            {"minimumBillAmount" in section ? <label className="settings-input-group"><span className="muted">Minimum bill amount</span><input type="number" value={section.minimumBillAmount} onChange={(event) => updateAdvancedObject(key, { minimumBillAmount: Number(event.target.value) })} /></label> : null}
-          </div>
-        </div>
-      </>
-    );
-  };
-
   const renderNotificationsSection = () => {
     const config = form.advancedSettings.notificationSettings;
 
@@ -2779,8 +2751,8 @@ export default function SettingsPage() {
       {
         title: "Referral",
         items: [
-          { key: "referralCodeSMS", label: "referralCodeSMS" },
-          { key: "referrerRewardSMS", label: "referrerRewardSMS" }
+          { key: "referralCodeSMS", label: "Referral Code SMS" },
+          { key: "referrerRewardSMS", label: "Referrer Reward SMS" }
         ]
       },
       {
@@ -2818,8 +2790,8 @@ export default function SettingsPage() {
         <div className="settings-panel-card" style={{ marginBottom: 20 }}>
           <div className="settings-toggle-grid">
             <ToggleRow checked={config.emailEnabled} label="Email alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { emailEnabled: value })} />
-            <ToggleRow checked={config.smsEnabled} label="Transaction email alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { smsEnabled: value })} />
-            <ToggleRow checked={config.whatsappEnabled} label="Follow-up email alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { whatsappEnabled: value })} />
+            <ToggleRow checked={config.smsEnabled} label="SMS alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { smsEnabled: value })} />
+            <ToggleRow checked={config.whatsappEnabled} label="WhatsApp alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { whatsappEnabled: value })} />
             <ToggleRow checked={config.pushEnabled} label="Push alerts" onChange={(value) => updateAdvancedObject("notificationSettings", { pushEnabled: value })} />
             <label className="settings-input-group"><span className="muted">Digest hour</span><input type="time" value={config.digestHour} onChange={(event) => updateAdvancedObject("notificationSettings", { digestHour: event.target.value })} /></label>
             <div className="settings-input-group" style={{ alignSelf: "end" }}><span className="muted" style={{ fontSize: 12 }}>Digest hour is stored for scheduled notification batching.</span></div>
@@ -3044,7 +3016,7 @@ export default function SettingsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (editingCard?._idx !== undefined) {
                         const next = cardTemplates.map((t, i) =>
                           i === editingCard._idx
@@ -3072,6 +3044,7 @@ export default function SettingsPage() {
                       }
                       setEditingCard(null);
                       setCardForm({ name: "", description: "", active: true, amount: "", validityDays: 30, renewalReminderDays: 7 });
+                      await saveWorkspace();
                     }}
                     style={{
                       padding: "10px 28px",
@@ -3310,6 +3283,7 @@ export default function SettingsPage() {
   const renderSimpleListSection = (title, key, description, fieldDefs, options = {}) => {
     const rows = form.advancedSettings[key];
     const updateRow = (id, patch) => updateArrayCollection(key, rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+    const deleteRow = (id) => updateArrayCollection(key, rows.filter((row) => row.id !== id));
     return (
       <>
         <SectionHeader title={title} description={description} badges={options.badges || [`${rows.length} entries`]} action={options.action || null} />
@@ -3320,19 +3294,35 @@ export default function SettingsPage() {
         ) : null}
         <div className="settings-list-stack">
           {rows.map((row) => (
-            <div key={row.id} className="settings-panel-card">
+            <div key={row.id} className="settings-panel-card" style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => deleteRow(row.id)}
+                title="Delete entry"
+                style={{ position: "absolute", top: 10, right: 10, background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+              >
+                Delete
+              </button>
               <div className="settings-form-grid">
                 {fieldDefs.map((field) => (
-                  <label key={field.key} className="settings-input-group">
-                    <span className="muted">{field.label}</span>
-                    {field.type === "checkbox" ? (<label className="mini-toggle-label"><input type="checkbox" className="premium-toggle-input" checked={Boolean(row[field.key])} onChange={(event) => updateRow(row.id, { [field.key]: event.target.checked })} /><div className="mini-toggle-switch"></div></label>) : (
+                  field.type === "checkbox" ? (
+                    <div key={field.key} className="settings-input-group">
+                      <span className="muted">{field.label}</span>
+                      <label className="mini-toggle-label" style={{ display: "inline-flex", alignItems: "center" }}>
+                        <input type="checkbox" className="premium-toggle-input" checked={Boolean(row[field.key])} onChange={(event) => updateRow(row.id, { [field.key]: event.target.checked })} />
+                        <div className="mini-toggle-switch"></div>
+                      </label>
+                    </div>
+                  ) : (
+                    <label key={field.key} className="settings-input-group">
+                      <span className="muted">{field.label}</span>
                       <input
                         type={field.type || "text"}
                         value={row[field.key]}
                         onChange={(event) => updateRow(row.id, { [field.key]: field.type === "number" ? Number(event.target.value) : event.target.value })}
                       />
-                    )}
-                  </label>
+                    </label>
+                  )
                 ))}
               </div>
             </div>
@@ -4473,10 +4463,6 @@ export default function SettingsPage() {
         return renderAccessControlSection();
       case "loyalty":
         return renderLoyaltySettingsSection();
-      case "membership":
-        return renderProgramSection("Membership", "membershipSettings", "Control recurring plan behavior and customer membership guardrails from settings.", [`${summary.memberships.length} live plans`], "/admin/memberships");
-      case "packages":
-        return renderProgramSection("Packages", "packageSettings", "Define package redemption and transfer defaults before staff manages packages live.", [`${summary.packages.length} live packages`], "/admin/packages");
       case "gift-card":
         return renderGiftCardSection();
       case "notification-settings":

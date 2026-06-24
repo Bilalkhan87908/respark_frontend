@@ -17,9 +17,17 @@ export default function StorefrontLayout() {
   useEffect(() => {
     api.get(`/public/salon/${slug}`)
       .then(res => {
-        const fullSalon = { ...res.data.salon, websiteConfig: res.data.websiteConfig };
+        const fullSalon = { ...res.data.salon, websiteConfig: res.data.websiteConfig, uiSettings: res.data.uiSettings, footerContent: res.data.footerContent };
         setSalon(fullSalon);
         setLoading(false);
+        // Apply UI settings as CSS variables
+        const ui = res.data.uiSettings || {};
+        const root = document.documentElement;
+        if (ui.buttonColor) root.style.setProperty("--button-bg", ui.buttonColor);
+        if (ui.buttonHoverColor) root.style.setProperty("--button-bg-hover", ui.buttonHoverColor);
+        if (ui.sidebarColor) root.style.setProperty("--sidebar-bg", ui.sidebarColor);
+        if (ui.navbarColor) root.style.setProperty("--navbar-bg", ui.navbarColor);
+        if (ui.fontColor) root.style.setProperty("--font-color", ui.fontColor);
       })
       .catch(err => {
         console.error(err);

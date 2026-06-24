@@ -760,7 +760,7 @@ function SalesSummaryDashboard({ data, loading }) {
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Service Sale <span style={{ color: "#94a3b8", fontWeight: 500 }}>(Top 5)</span></h3>
-            <button style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
+            <button onClick={() => setActiveReport("service_sales")} style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {data.topServices.length ? data.topServices.map((item, idx) => {
@@ -785,7 +785,7 @@ function SalesSummaryDashboard({ data, loading }) {
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Product Sale <span style={{ color: "#94a3b8", fontWeight: 500 }}>(Top 5)</span></h3>
-            <button style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
+            <button onClick={() => setActiveReport("product_sales")} style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {data.topProducts.length ? data.topProducts.map((item, idx) => {
@@ -810,7 +810,7 @@ function SalesSummaryDashboard({ data, loading }) {
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Stylist Sale <span style={{ color: "#94a3b8", fontWeight: 500 }}>(Top 5)</span></h3>
-            <button style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
+            <button onClick={() => setActiveReport("staff_performance")} style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {data.topStylists.length ? data.topStylists.map((item, idx) => {
@@ -838,7 +838,7 @@ function SalesSummaryDashboard({ data, loading }) {
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Membership Sale <span style={{ color: "#94a3b8", fontWeight: 500 }}>(Top 5)</span></h3>
-            <button style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
+            <button onClick={() => setActiveReport("memberships")} style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {data.topMemberships.length ? data.topMemberships.map((item, idx) => {
@@ -863,7 +863,7 @@ function SalesSummaryDashboard({ data, loading }) {
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Package Sale <span style={{ color: "#94a3b8", fontWeight: 500 }}>(Top 5)</span></h3>
-            <button style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
+            <button onClick={() => setActiveReport("packages")} style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {data.topPackages.length ? data.topPackages.map((item, idx) => {
@@ -888,7 +888,7 @@ function SalesSummaryDashboard({ data, loading }) {
         <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>Client Count</h3>
-            <button style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
+            <button onClick={() => setActiveReport("customers")} style={{ background: "#eff6ff", border: "none", color: "#2563eb", fontSize: "0.68rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", cursor: "pointer" }}>View All</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {data.clientCount.length ? data.clientCount.map((item, idx) => {

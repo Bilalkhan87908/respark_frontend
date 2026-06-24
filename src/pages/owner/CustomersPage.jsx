@@ -74,6 +74,7 @@ export default function CustomersPage() {
   const { auth } = useAuth();
   const [selectedBillInvoice, setSelectedBillInvoice] = useState(null);
   const [rows, setRows] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "desc" });
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
   const [loading, setLoading] = useState(true);
@@ -822,6 +823,26 @@ export default function CustomersPage() {
     }
   };
 
+  const handleSort = (key) => {
+    setSortConfig((current) => {
+      if (current.key === key) {
+        return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
+  const SortHeader = ({ sortKey, children }) => (
+    <th onClick={() => handleSort(sortKey)} style={{ cursor: "pointer", userSelect: "none" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {children}
+        {sortConfig.key === sortKey && (
+          <span style={{ fontSize: "0.7rem", color: "#2563eb" }}>{sortConfig.direction === "asc" ? "▲" : "▼"}</span>
+        )}
+      </span>
+    </th>
+  );
+
   const visibleRows = rows.filter((row) => {
     const genderValue = String(row.gender || "").toLowerCase();
     const totalPurchase = Number(row.totalSpend || 0);
@@ -867,13 +888,80 @@ export default function CustomersPage() {
     if (appliedFilters.packageState === "yes" && packageCount <= 0) return false;
     if (appliedFilters.packageState === "no" && packageCount > 0) return false;
     return true;
+  }).sort((a, b) => {
+    if (!sortConfig.key) return 0;
+    let aValue;
+    let bValue;
+    switch (sortConfig.key) {
+      case "name":
+        aValue = String(a.name || "").toLowerCase();
+        bValue = String(b.name || "").toLowerCase();
+        break;
+      case "gender":
+        aValue = String(a.gender || "").toLowerCase();
+        bValue = String(b.gender || "").toLowerCase();
+        break;
+      case "lastVisitAt":
+        aValue = a.lastVisitAt ? new Date(a.lastVisitAt).getTime() : 0;
+        bValue = b.lastVisitAt ? new Date(b.lastVisitAt).getTime() : 0;
+        break;
+      case "totalOrders":
+        aValue = Number(a.totalOrders || 0);
+        bValue = Number(b.totalOrders || 0);
+        break;
+      case "totalSpend":
+        aValue = Number(a.totalSpend || 0);
+        bValue = Number(b.totalSpend || 0);
+        break;
+      case "averageSpend":
+        aValue = Number(a.averageSpend || 0);
+        bValue = Number(b.averageSpend || 0);
+        break;
+      case "onlineVisits":
+        aValue = Number(a.onlineVisits || 0);
+        bValue = Number(b.onlineVisits || 0);
+        break;
+      case "loyalty":
+        aValue = Number(a.loyalty || a.loyaltyPoints || 0);
+        bValue = Number(b.loyalty || b.loyaltyPoints || 0);
+        break;
+      case "referralCode":
+        aValue = String(a.referralCode || "").toLowerCase();
+        bValue = String(b.referralCode || "").toLowerCase();
+        break;
+      case "advanceAmount":
+        aValue = Number(a.advanceAmount || 0);
+        bValue = Number(b.advanceAmount || 0);
+        break;
+      case "balanceAmount":
+        aValue = Number(a.balanceAmount || 0);
+        bValue = Number(b.balanceAmount || 0);
+        break;
+      case "membershipCount":
+        aValue = Number(a.membershipCount || 0);
+        bValue = Number(b.membershipCount || 0);
+        break;
+      case "packageCount":
+        aValue = Number(a.packageCount || 0);
+        bValue = Number(b.packageCount || 0);
+        break;
+      case "dateOfBirth":
+        aValue = a.dateOfBirth ? new Date(a.dateOfBirth).getTime() : 0;
+        bValue = b.dateOfBirth ? new Date(b.dateOfBirth).getTime() : 0;
+        break;
+      default:
+        return 0;
+    }
+    if (aValue === bValue) return 0;
+    const result = aValue < bValue ? -1 : 1;
+    return sortConfig.direction === "asc" ? result : -result;
   });
 
   const totalPages = Math.ceil(visibleRows.length / pageSize) || 1;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, appliedFilters]);
+  }, [query, appliedFilters, sortConfig]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -1368,20 +1456,20 @@ export default function CustomersPage() {
                 <tr>
                   <th style={{ width: 40 }}><input type="checkbox" className="crm-table-checkbox" /></th>
                   <th>MOBILE NO.</th>
-                  <th>NAME</th>
-                  <th>GENDER</th>
-                  <th>LAST VISITED</th>
-                  <th>TOTAL<br />ORDERS</th>
-                  <th>TOTAL<br />PURCHASE AMOUNT</th>
-                  <th>AVERAGE<br />PURCHASE AMOUNT</th>
-                  <th>ONLINE<br />VISITS</th>
-                  <th>LOYALTY</th>
-                  <th>REFERRAL<br />CODE</th>
-                  <th>ADVANCE</th>
-                  <th>BALANCE</th>
-                  <th>MEMBERSHIP<br />COUNT</th>
-                  <th>PACKAGE<br />COUNT</th>
-                  <th>BIRTH<br />DATE</th>
+                  <SortHeader sortKey="name">NAME</SortHeader>
+                  <SortHeader sortKey="gender">GENDER</SortHeader>
+                  <SortHeader sortKey="lastVisitAt">LAST VISITED</SortHeader>
+                  <SortHeader sortKey="totalOrders">TOTAL<br />ORDERS</SortHeader>
+                  <SortHeader sortKey="totalSpend">TOTAL<br />PURCHASE AMOUNT</SortHeader>
+                  <SortHeader sortKey="averageSpend">AVERAGE<br />PURCHASE AMOUNT</SortHeader>
+                  <SortHeader sortKey="onlineVisits">ONLINE<br />VISITS</SortHeader>
+                  <SortHeader sortKey="loyalty">LOYALTY</SortHeader>
+                  <SortHeader sortKey="referralCode">REFERRAL<br />CODE</SortHeader>
+                  <SortHeader sortKey="advanceAmount">ADVANCE</SortHeader>
+                  <SortHeader sortKey="balanceAmount">BALANCE</SortHeader>
+                  <SortHeader sortKey="membershipCount">MEMBERSHIP<br />COUNT</SortHeader>
+                  <SortHeader sortKey="packageCount">PACKAGE<br />COUNT</SortHeader>
+                  <SortHeader sortKey="dateOfBirth">BIRTH<br />DATE</SortHeader>
                   <th style={{ width: 40 }}></th>
                 </tr>
               </thead>
@@ -2957,14 +3045,6 @@ export default function CustomersPage() {
                   {staffUsers.map((s) => (
                     <option key={s.id} value={s.id}>{s.user?.name || s.name || s.user?.email || s.id}</option>
                   ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Type</label>
-                <select value={followUpForm.type} onChange={(e) => setFollowUpForm(prev => ({ ...prev, type: e.target.value }))}>
-                  <option value="sms">SMS</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="email">Email</option>
                 </select>
               </div>
               <div className="form-group">

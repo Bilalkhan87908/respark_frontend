@@ -8,7 +8,7 @@ const emptyForm = {
   monthlyPrice: 0,
   yearlyPrice: 0,
   trialDays: 14,
-  branchLimit: 1,
+  branchLimit: 9999,
   userLimit: 5,
   customerLimit: 500,
   invoiceLimit: 1000,
@@ -139,7 +139,7 @@ export default function PlansPage() {
             <input type="number" min="0" placeholder="Monthly price" value={form.monthlyPrice} onChange={(event) => setForm({ ...form, monthlyPrice: event.target.value })} />
             <input type="number" min="0" placeholder="Yearly price" value={form.yearlyPrice} onChange={(event) => setForm({ ...form, yearlyPrice: event.target.value })} />
             <input type="number" min="0" placeholder="Trial days" value={form.trialDays} onChange={(event) => setForm({ ...form, trialDays: event.target.value })} />
-            <input type="number" min="0" placeholder="Branch limit" value={form.branchLimit} onChange={(event) => setForm({ ...form, branchLimit: event.target.value })} />
+            <input type="number" min="0" placeholder="Branch limit (9999 = unlimited)" value={form.branchLimit} onChange={(event) => setForm({ ...form, branchLimit: event.target.value })} />
             <input type="number" min="0" placeholder="User limit" value={form.userLimit} onChange={(event) => setForm({ ...form, userLimit: event.target.value })} />
             <input type="number" min="0" placeholder="Customer limit" value={form.customerLimit} onChange={(event) => setForm({ ...form, customerLimit: event.target.value })} />
             <input type="number" min="0" placeholder="Invoice limit" value={form.invoiceLimit} onChange={(event) => setForm({ ...form, invoiceLimit: event.target.value })} />
@@ -178,7 +178,7 @@ export default function PlansPage() {
                   </div>
                   {row.isCustom && <span className="badge">Custom</span>}
                 </div>
-                <div className="item-meta">Branches {row.branchLimit} | Users {row.userLimit} | Customers {row.customerLimit} | Invoices {row.invoiceLimit} | Storage {row.storageLimit || 0} GB</div>
+                <div className="item-meta">Branches {Number(row.branchLimit) >= 9999 ? "Unlimited" : row.branchLimit} | Users {row.userLimit} | Customers {row.customerLimit} | Invoices {row.invoiceLimit} | Storage {row.storageLimit || 0} GB</div>
                 <button type="button" className="secondary-button" style={{ marginTop: 8 }} onClick={() => startEdit(row)}>Edit Plan</button>
               </div>
             ))

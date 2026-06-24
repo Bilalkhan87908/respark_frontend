@@ -84,7 +84,7 @@ const defaultPlans = [
     monthlyPrice: 4999,
     yearlyPrice: 49990,
     trialDays: 14,
-    branchLimit: 1,
+    branchLimit: 9999,
     userLimit: 5,
     customerLimit: 500,
     invoiceLimit: 1000,
@@ -97,7 +97,7 @@ const defaultPlans = [
     monthlyPrice: 9999,
     yearlyPrice: 99990,
     trialDays: 14,
-    branchLimit: 3,
+    branchLimit: 9999,
     userLimit: 20,
     customerLimit: 3000,
     invoiceLimit: 10000,
@@ -110,7 +110,7 @@ const defaultPlans = [
     monthlyPrice: 17999,
     yearlyPrice: 179990,
     trialDays: 21,
-    branchLimit: 10,
+    branchLimit: 9999,
     userLimit: 100,
     customerLimit: 20000,
     invoiceLimit: 50000,
@@ -444,7 +444,7 @@ export default function MarketingHomePage() {
                     <div className="plan-price">{pricingCurrency} {formatPrice(plan.monthlyPrice, pricingCurrency)}<small>/month</small></div>
                     <p className="muted">Yearly {pricingCurrency} {formatPrice(plan.yearlyPrice, pricingCurrency)} | Trial {plan.trialDays} days</p>
                     <ul className="public-list compact">
-                      <li>{plan.branchLimit} branches</li>
+                      <li>Unlimited branches</li>
                       <li>{plan.userLimit} users</li>
                       <li>{plan.customerLimit} customers</li>
                       <li>{plan.invoiceLimit} invoices</li>

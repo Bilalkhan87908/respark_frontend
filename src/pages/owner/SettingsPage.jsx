@@ -441,6 +441,13 @@ export default function SettingsPage() {
   const [paymentModes, setPaymentModes] = useState(defaultPaymentModes);
   const [summary, setSummary] = useState(liveSummaryFallback);
   const [segmentPreviewCounts, setSegmentPreviewCounts] = useState({});
+  const [taxRates, setTaxRates] = useState([]);
+  const [designations, setDesignations] = useState([]);
+  const [feedbackTypes, setFeedbackTypes] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [referralRule, setReferralRule] = useState(null);
+  const [taxSlabs, setTaxSlabs] = useState([]);
+  const [pnlCategories, setPnlCategories] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: "", success: "" });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -536,7 +543,14 @@ export default function SettingsPage() {
           api.get("/owner/incentives"),
           api.get("/owner/notifications"),
           api.get("/owner/feedback/reports"),
-          api.get("/owner/expenses/accounts")
+          api.get("/owner/expenses/accounts"),
+          api.get("/owner/tax-rates"),
+          api.get("/owner/designations"),
+          api.get("/owner/feedback-types"),
+          api.get("/owner/shifts"),
+          api.get("/owner/referrals/rule"),
+          api.get("/owner/tax-slabs"),
+          api.get("/owner/pnl-categories")
         ]);
 
         if (!active) return;
@@ -588,6 +602,13 @@ export default function SettingsPage() {
           expenseAccountInjections: objectFromResponse(summaryResponses[13], { injections: [] }).injections || []
         };
         setSummary(nextSummary);
+        setTaxRates(rowsFromResponse(summaryResponses[14]));
+        setDesignations(rowsFromResponse(summaryResponses[15]));
+        setFeedbackTypes(rowsFromResponse(summaryResponses[16]));
+        setShifts(rowsFromResponse(summaryResponses[17]));
+        setReferralRule(objectFromResponse(summaryResponses[18], null));
+        setTaxSlabs(rowsFromResponse(summaryResponses[19]));
+        setPnlCategories(rowsFromResponse(summaryResponses[20]));
         setStatus({ loading: false, error: "", success: "" });
       } catch (error) {
         if (!active) return;
@@ -2122,48 +2143,60 @@ export default function SettingsPage() {
   };
 
   const renderTaxSection = () => {
-    const taxRows = form.advancedSettings.taxMapping.rates;
+    const taxRows = taxRates;
     const inclusiveTax = form.advancedSettings.taxMapping.inclusiveTax ?? false;
 
     const selectedRow = taxRows.find((r) => r.id === selectedTaxId) || null;
 
     const startCreate = () => {
-      const newId = makeId("tax");
-      setDraftTax({ id: newId, label: "", code: "", rate: 0, active: true, applicableFor: ["SERVICE", "PRODUCT"], _isNew: true });
-      setSelectedTaxId(newId);
+      setDraftTax({ id: null, label: "", code: "", rate: 0, active: true, applicableFor: ["SERVICE", "PRODUCT"], _isNew: true });
+      setSelectedTaxId(null);
     };
 
     const startEdit = (row) => {
-      setDraftTax({ ...row, _isNew: false });
+      setDraftTax({ ...row, applicableFor: typeof row.applicableFor === "string" ? row.applicableFor.split(",").filter(Boolean) : (row.applicableFor || []), _isNew: false });
       setSelectedTaxId(row.id);
     };
 
     const cancelDraft = () => {
-      if (draftTax?._isNew) {
-        setSelectedTaxId(null);
-        setDraftTax(null);
-      } else {
-        setDraftTax(null);
-      }
+      setDraftTax(null);
+      setSelectedTaxId(null);
     };
 
     const saveDraft = async () => {
       if (!draftTax) return;
       if (!draftTax.label.trim()) return;
-      const { _isNew, ...clean } = draftTax;
-      if (_isNew) {
-        updateAdvancedObject("taxMapping", { rates: [...taxRows, clean] });
-      } else {
-        updateAdvancedObject("taxMapping", { rates: taxRows.map((r) => r.id === clean.id ? clean : r) });
+      try {
+        const payload = {
+          label: draftTax.label.trim(),
+          code: draftTax.code?.trim() || draftTax.label.trim().toUpperCase().replace(/\s+/g, "").slice(0, 8),
+          rate: Number(draftTax.rate) || 0,
+          active: draftTax.active !== false,
+          applicableFor: Array.isArray(draftTax.applicableFor) ? draftTax.applicableFor : ["SERVICE", "PRODUCT"]
+        };
+        if (draftTax._isNew) {
+          const res = await api.post("/owner/tax-rates", payload);
+          setTaxRates((prev) => [...prev, res.data]);
+        } else {
+          const res = await api.patch(`/owner/tax-rates/${draftTax.id}`, payload);
+          setTaxRates((prev) => prev.map((r) => (r.id === draftTax.id ? res.data : r)));
+        }
+        cancelDraft();
+        setStatus({ loading: false, error: "", success: "Tax rate saved." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not save tax rate"), success: "" });
       }
-      setDraftTax(null);
-      setSelectedTaxId(clean.id);
-      await saveWorkspace();
     };
 
-    const deleteTax = (id) => {
-      updateAdvancedObject("taxMapping", { rates: taxRows.filter((r) => r.id !== id) });
-      if (selectedTaxId === id) { setSelectedTaxId(null); setDraftTax(null); }
+    const deleteTax = async (id) => {
+      try {
+        await api.delete(`/owner/tax-rates/${id}`);
+        setTaxRates((prev) => prev.filter((r) => r.id !== id));
+        if (selectedTaxId === id) cancelDraft();
+        setStatus({ loading: false, error: "", success: "Tax rate deleted." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not delete tax rate"), success: "" });
+      }
     };
 
     const toggleApplicable = (key) => {
@@ -2277,7 +2310,7 @@ export default function SettingsPage() {
                       <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#334155", cursor: "pointer" }}>
                         <input
                           type="checkbox"
-                          checked={(draftTax?.applicableFor ?? (editing.applicableFor || [])).includes(key)}
+                          checked={(draftTax?.applicableFor ?? (typeof editing.applicableFor === "string" ? editing.applicableFor.split(",") : (editing.applicableFor || []))).includes(key)}
                           onChange={() => draftTax && toggleApplicable(key)}
                           style={{ width: 16, height: 16, accentColor: "var(--accent, #3b82f6)", cursor: "pointer" }}
                         />
@@ -2491,24 +2524,15 @@ export default function SettingsPage() {
 
   const renderFeedbackSection = () => {
     const feedback = form.advancedSettings.feedbackSetting;
-    const feedbackTypes = feedback.types || [
-      { id: "service-quality", name: "Service Quality", active: true },
-      { id: "social-etiquette", name: "Social Etiquette", active: true },
-      { id: "personal-hygiene", name: "Personal Hygiene", active: true },
-      { id: "remark", name: "Remark", active: true }
-    ];
-    const activeCount = feedbackTypes.filter((type) => type.active).length;
-    const updateFeedbackTypes = (newTypes) => {
-      updateAdvancedObject("feedbackSetting", { types: newTypes });
-    };
+    const feedbackTypesList = feedbackTypes;
+    const activeCount = feedbackTypesList.filter((type) => type.active).length;
 
-    const selectedRow = feedbackTypes.find((row) => row.id === selectedFeedbackTypeId) || null;
+    const selectedRow = feedbackTypesList.find((row) => row.id === selectedFeedbackTypeId) || null;
     const editing = draftFeedbackType || selectedRow;
 
     const startCreate = () => {
-      const newId = `type-${Date.now()}`;
-      setDraftFeedbackType({ id: newId, name: "", active: true, _isNew: true });
-      setSelectedFeedbackTypeId(newId);
+      setDraftFeedbackType({ id: null, name: "", slug: "", active: true, _isNew: true });
+      setSelectedFeedbackTypeId(null);
     };
 
     const startEdit = (row) => {
@@ -2517,32 +2541,41 @@ export default function SettingsPage() {
     };
 
     const cancelDraft = () => {
-      if (draftFeedbackType?._isNew) setSelectedFeedbackTypeId(null);
       setDraftFeedbackType(null);
+      setSelectedFeedbackTypeId(null);
     };
 
     const saveDraft = async () => {
       if (!draftFeedbackType) return;
-      const { _isNew, ...cleanDraft } = draftFeedbackType;
-      if (!cleanDraft.name.trim()) return;
-      const clean = {
-        ...cleanDraft,
-        name: cleanDraft.name.trim()
-      };
-      const nextRows = _isNew
-        ? [...feedbackTypes, clean]
-        : feedbackTypes.map((row) => (row.id === clean.id ? clean : row));
-      updateFeedbackTypes(nextRows);
-      setDraftFeedbackType(null);
-      setSelectedFeedbackTypeId(clean.id);
-      await saveWorkspace();
+      if (!draftFeedbackType.name?.trim()) return;
+      try {
+        const payload = {
+          name: draftFeedbackType.name.trim(),
+          slug: draftFeedbackType.slug?.trim() || draftFeedbackType.name.trim().toLowerCase().replace(/\s+/g, "-").slice(0, 32),
+          active: draftFeedbackType.active !== false
+        };
+        if (draftFeedbackType._isNew) {
+          const res = await api.post("/owner/feedback-types", payload);
+          setFeedbackTypes((prev) => [...prev, res.data]);
+        } else {
+          const res = await api.patch(`/owner/feedback-types/${draftFeedbackType.id}`, payload);
+          setFeedbackTypes((prev) => prev.map((r) => (r.id === draftFeedbackType.id ? res.data : r)));
+        }
+        cancelDraft();
+        setStatus({ loading: false, error: "", success: "Feedback type saved." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not save feedback type"), success: "" });
+      }
     };
 
-    const deleteRow = (id) => {
-      updateFeedbackTypes(feedbackTypes.filter((row) => row.id !== id));
-      if (selectedFeedbackTypeId === id) {
-        setSelectedFeedbackTypeId(null);
-        setDraftFeedbackType(null);
+    const deleteRow = async (id) => {
+      try {
+        await api.delete(`/owner/feedback-types/${id}`);
+        setFeedbackTypes((prev) => prev.filter((r) => r.id !== id));
+        if (selectedFeedbackTypeId === id) cancelDraft();
+        setStatus({ loading: false, error: "", success: "Feedback type deleted." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not delete feedback type"), success: "" });
       }
     };
 
@@ -2551,7 +2584,7 @@ export default function SettingsPage() {
         <SectionHeader
           title="Feedback Setting"
           description="Control how guest feedback is requested, escalated, and acknowledged from one polished workspace."
-          badges={[feedback.enabled ? "Feedback On" : "Feedback Off", `${feedbackTypes.length} types`, `${activeCount} active`]}
+          badges={[feedback.enabled ? "Feedback On" : "Feedback Off", `${feedbackTypesList.length} types`, `${activeCount} active`]}
           action={<Link className="secondary-button" to="/admin/feedback">Open Feedback Module</Link>}
         />
         <div className="muted" style={{ marginBottom: 16, fontSize: 12 }}>
@@ -2579,7 +2612,7 @@ export default function SettingsPage() {
                 <button type="button" onClick={startCreate} style={{ width: "100%", padding: "10px", background: "var(--button-bg-solid, #3b82f6)", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Create New</button>
               </div>
               <div style={{ maxHeight: 420, overflowY: "auto" }}>
-                {feedbackTypes.map((row) => (
+                {feedbackTypesList.map((row) => (
                   <div
                     key={row.id}
                     style={{
@@ -3186,14 +3219,36 @@ export default function SettingsPage() {
   };
 
   const renderReferralSection = () => {
-    const referral = form.advancedSettings.referralSettings;
-    const update = (patch) => updateAdvancedObject("referralSettings", patch);
+    const referral = referralRule || {
+      enabled: false, maxReferLimit: 1000,
+      referrerMaxBenefitAmount: 500, referrerFixedAmount: 0, referrerPercentage: 10,
+      referredMaxBenefitAmount: 500, referredFixedAmount: 0, referredPercentage: 10
+    };
+    const [savingReferral, setSavingReferral] = useState(false);
+    const [referralDraft, setReferralDraft] = useState(referral);
+    useEffect(() => { setReferralDraft(referral); }, [referralRule]);
+    const update = (patch) => setReferralDraft((current) => ({ ...current, ...patch }));
+
+    const saveReferral = async () => {
+      try {
+        setSavingReferral(true);
+        const res = await api.post("/owner/referrals/rule", referralDraft);
+        setReferralRule(res.data);
+        setStatus({ loading: false, error: "", success: "Referral settings saved." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not save referral settings"), success: "" });
+      } finally {
+        setSavingReferral(false);
+      }
+    };
+
     return (
       <>
         <SectionHeader
           title="Referral"
           description="Control whether referrals are active and define separate benefits for the referrer and the referred guest."
           badges={[referral.enabled ? "Enabled" : "Disabled", `Max Refer Limit ${referral.maxReferLimit}`]}
+          action={<button type="button" onClick={saveReferral} disabled={savingReferral} className="primary-button" style={{ padding: "8px 18px", background: "var(--button-bg-solid, #3b82f6)", color: "white", border: "none", borderRadius: 8, fontWeight: 600, cursor: savingReferral ? "not-allowed" : "pointer", opacity: savingReferral ? 0.6 : 1 }}>{savingReferral ? "Saving..." : "Save"}</button>}
         />
 
         <div className="settings-panel-card" style={{ marginBottom: 20 }}>
@@ -3201,24 +3256,24 @@ export default function SettingsPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>Referral</span>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, cursor: "pointer" }}>
-                <input type="checkbox" checked={referral.enabled} onChange={(e) => update({ enabled: e.target.checked })} style={{ opacity: 0, width: 0, height: 0 }} />
+                <input type="checkbox" checked={Boolean(referralDraft.enabled)} onChange={(e) => update({ enabled: e.target.checked })} style={{ opacity: 0, width: 0, height: 0 }} />
                 <span style={{
                   position: "absolute", inset: 0, borderRadius: 12, transition: "0.3s",
-                  background: referral.enabled ? "#2563eb" : "#cbd5e1"
+                  background: referralDraft.enabled ? "#2563eb" : "#cbd5e1"
                 }} />
                 <span style={{
-                  position: "absolute", top: 2, left: referral.enabled ? 22 : 2, width: 20, height: 20,
+                  position: "absolute", top: 2, left: referralDraft.enabled ? 22 : 2, width: 20, height: 20,
                   borderRadius: "50%", background: "white", transition: "0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)"
                 }} />
               </label>
-              <span style={{ fontSize: 13, color: referral.enabled ? "#2563eb" : "#64748b", fontWeight: 500 }}>
-                {referral.enabled ? "Enabled" : "Disabled"}
+              <span style={{ fontSize: 13, color: referralDraft.enabled ? "#2563eb" : "#64748b", fontWeight: 500 }}>
+                {referralDraft.enabled ? "Enabled" : "Disabled"}
               </span>
             </div>
             <div style={{ marginLeft: "auto" }}>
               <label className="settings-input-group" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <span className="muted" style={{ whiteSpace: "nowrap" }}>Max Refer Limit</span>
-                <input type="number" value={referral.maxReferLimit} onChange={(e) => update({ maxReferLimit: Number(e.target.value) })}
+                <input type="number" value={referralDraft.maxReferLimit} onChange={(e) => update({ maxReferLimit: Number(e.target.value) })}
                   style={{ width: 100, padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
               </label>
             </div>
@@ -3232,20 +3287,20 @@ export default function SettingsPage() {
             <div style={{ display: "grid", gap: 16 }}>
               <label className="settings-input-group">
                 <span className="muted">Max Benefit Amount</span>
-                <input type="number" value={referral.referrerMaxBenefitAmount} onChange={(e) => update({ referrerMaxBenefitAmount: Number(e.target.value) })} />
+                <input type="number" value={referralDraft.referrerMaxBenefitAmount} onChange={(e) => update({ referrerMaxBenefitAmount: Number(e.target.value) })} />
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "end" }}>
                 <label className="settings-input-group">
                   <span className="muted">Fixed Amount</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 13, color: "#64748b" }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</span>
-                    <input type="number" value={referral.referrerFixedAmount} onChange={(e) => update({ referrerFixedAmount: Number(e.target.value) })} style={{ flex: 1 }} />
+                    <input type="number" value={referralDraft.referrerFixedAmount} onChange={(e) => update({ referrerFixedAmount: Number(e.target.value) })} style={{ flex: 1 }} />
                   </div>
                 </label>
                 <span style={{ fontSize: 13, color: "#94a3b8", paddingBottom: 4 }}>OR</span>
                 <label className="settings-input-group">
                   <span className="muted">Percentage</span>
-                  <input type="number" value={referral.referrerPercentage} onChange={(e) => update({ referrerPercentage: Number(e.target.value) })} />
+                  <input type="number" value={referralDraft.referrerPercentage} onChange={(e) => update({ referrerPercentage: Number(e.target.value) })} />
                 </label>
               </div>
             </div>
@@ -3257,25 +3312,155 @@ export default function SettingsPage() {
             <div style={{ display: "grid", gap: 16 }}>
               <label className="settings-input-group">
                 <span className="muted">Max Benefit Amount</span>
-                <input type="number" value={referral.referredMaxBenefitAmount} onChange={(e) => update({ referredMaxBenefitAmount: Number(e.target.value) })} />
+                <input type="number" value={referralDraft.referredMaxBenefitAmount} onChange={(e) => update({ referredMaxBenefitAmount: Number(e.target.value) })} />
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "end" }}>
                 <label className="settings-input-group">
                   <span className="muted">Fixed Amount</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: 13, color: "#64748b" }}>{formatMoney(1).replace(/[\d.,]/g, '').trim()}</span>
-                    <input type="number" value={referral.referredFixedAmount} onChange={(e) => update({ referredFixedAmount: Number(e.target.value) })} style={{ flex: 1 }} />
+                    <input type="number" value={referralDraft.referredFixedAmount} onChange={(e) => update({ referredFixedAmount: Number(e.target.value) })} style={{ flex: 1 }} />
                   </div>
                 </label>
                 <span style={{ fontSize: 13, color: "#94a3b8", paddingBottom: 4 }}>OR</span>
                 <label className="settings-input-group">
                   <span className="muted">Percentage</span>
-                  <input type="number" value={referral.referredPercentage} onChange={(e) => update({ referredPercentage: Number(e.target.value) })} />
+                  <input type="number" value={referralDraft.referredPercentage} onChange={(e) => update({ referredPercentage: Number(e.target.value) })} />
                 </label>
               </div>
             </div>
           </div>
         </div>
+      </>
+    );
+  };
+
+  const renderDesignationSection = () => {
+    const rows = designations;
+    const [draft, setDraft] = useState(null);
+
+    const addNew = () => {
+      setDraft({ name: "", description: "", active: true, _isNew: true });
+    };
+
+    const startEdit = (row) => {
+      setDraft({ ...row, _isNew: false });
+    };
+
+    const cancel = () => setDraft(null);
+
+    const save = async () => {
+      if (!draft || !draft.name?.trim()) return;
+      try {
+        const payload = {
+          name: draft.name.trim(),
+          description: draft.description || null,
+          active: draft.active !== false
+        };
+        if (draft._isNew) {
+          const res = await api.post("/owner/designations", payload);
+          setDesignations((prev) => [...prev, res.data]);
+        } else {
+          const res = await api.patch(`/owner/designations/${draft.id}`, payload);
+          setDesignations((prev) => prev.map((r) => (r.id === draft.id ? res.data : r)));
+        }
+        cancel();
+        setStatus({ loading: false, error: "", success: "Designation saved." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not save designation"), success: "" });
+      }
+    };
+
+    const remove = async (id) => {
+      try {
+        await api.delete(`/owner/designations/${id}`);
+        setDesignations((prev) => prev.filter((r) => r.id !== id));
+        if (draft?.id === id) cancel();
+        setStatus({ loading: false, error: "", success: "Designation deleted." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not delete designation"), success: "" });
+      }
+    };
+
+    return (
+      <>
+        <SectionHeader
+          title="Designation"
+          description="Maintain staff titles that can be assigned across teams and branches."
+          badges={[`${rows.length} entries`]}
+          action={<Link className="secondary-button" to="/admin/users">Open Staff Users</Link>}
+        />
+        <div className="muted" style={{ marginBottom: 12, fontSize: 12 }}>
+          Saved designations appear in the staff create/edit form and are stored against each staff profile.
+        </div>
+        <div className="settings-list-stack">
+          {rows.map((row) => (
+            <div key={row.id} className="settings-panel-card" style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => remove(row.id)}
+                title="Delete designation"
+                style={{ position: "absolute", top: 10, right: 10, background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => startEdit(row)}
+                style={{ position: "absolute", top: 10, right: 70, background: "#dbeafe", color: "#1e40af", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+              >
+                Edit
+              </button>
+              <div className="settings-form-grid">
+                <label className="settings-input-group">
+                  <span className="muted">Name</span>
+                  <input value={row.name} readOnly />
+                </label>
+                <label className="settings-input-group">
+                  <span className="muted">Description</span>
+                  <input value={row.description || ""} readOnly />
+                </label>
+                <div className="settings-input-group">
+                  <span className="muted">Active</span>
+                  <span style={{ fontWeight: 600, color: row.active ? "#16a34a" : "#94a3b8" }}>{row.active ? "Active" : "Inactive"}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={addNew}
+          style={{ marginTop: 12, padding: "10px 20px", background: "var(--button-bg-solid, #3b82f6)", color: "white", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}
+        >
+          Add New
+        </button>
+        {draft && (
+          <div className="settings-panel-card" style={{ marginTop: 16 }}>
+            <h3 style={{ marginTop: 0 }}>{draft._isNew ? "New Designation" : `Edit: ${draft.name}`}</h3>
+            <div className="settings-form-grid">
+              <label className="settings-input-group">
+                <span className="muted">Name</span>
+                <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Senior Stylist" />
+              </label>
+              <label className="settings-input-group">
+                <span className="muted">Description</span>
+                <input value={draft.description || ""} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Optional description" />
+              </label>
+              <div className="settings-input-group">
+                <span className="muted">Active</span>
+                <label className="mini-toggle-label" style={{ display: "inline-flex", alignItems: "center" }}>
+                  <input type="checkbox" className="premium-toggle-input" checked={draft.active !== false} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} />
+                  <div className="mini-toggle-switch"></div>
+                </label>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button type="button" onClick={cancel} style={{ padding: "10px 20px", background: "white", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569" }}>Cancel</button>
+              <button type="button" onClick={save} style={{ padding: "10px 20px", background: "var(--button-bg-solid, #3b82f6)", color: "white", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>Save</button>
+            </div>
+          </div>
+        )}
       </>
     );
   };
@@ -3356,7 +3541,7 @@ export default function SettingsPage() {
   );
 
   const renderPnlCategoriesSection = () => {
-    const rows = [...form.advancedSettings.pnlCategories].sort((a, b) => {
+    const rows = [...pnlCategories].sort((a, b) => {
       const leftSeq = Number(a.sequenceNumber || 0);
       const rightSeq = Number(b.sequenceNumber || 0);
       if (leftSeq !== rightSeq) return leftSeq - rightSeq;
@@ -3366,9 +3551,8 @@ export default function SettingsPage() {
     const editing = draftPnlCategory || selectedRow;
 
     const startCreate = () => {
-      const newId = makeId("pnl");
-      setDraftPnlCategory({ id: newId, name: "", type: "Expense", sequenceNumber: rows.length ? Math.max(...rows.map((row) => Number(row.sequenceNumber || 0))) + 1 : 1, active: true, _isNew: true });
-      setSelectedPnlCategoryId(newId);
+      setDraftPnlCategory({ id: null, name: "", type: "EXPENSE", sequenceNumber: rows.length ? Math.max(...rows.map((row) => Number(row.sequenceNumber || 0))) + 1 : 1, active: true, _isNew: true });
+      setSelectedPnlCategoryId(null);
     };
 
     const startEdit = (row) => {
@@ -3377,36 +3561,42 @@ export default function SettingsPage() {
     };
 
     const cancelDraft = () => {
-      if (draftPnlCategory?._isNew) {
-        setSelectedPnlCategoryId(null);
-      }
       setDraftPnlCategory(null);
+      setSelectedPnlCategoryId(null);
     };
 
-    const saveDraft = () => {
+    const saveDraft = async () => {
       if (!draftPnlCategory) return;
-      const { _isNew, ...cleanDraft } = draftPnlCategory;
-      const clean = {
-        ...cleanDraft,
-        name: String(cleanDraft.name || "").trim(),
-        type: cleanDraft.type === "Income" ? "Income" : "Expense",
-        sequenceNumber: Number(cleanDraft.sequenceNumber || 0),
-        active: Boolean(cleanDraft.active)
-      };
-      if (!clean.name) return;
-      const nextRows = _isNew
-        ? [...form.advancedSettings.pnlCategories, clean]
-        : form.advancedSettings.pnlCategories.map((row) => (row.id === clean.id ? clean : row));
-      updateArrayCollection("pnlCategories", nextRows);
-      setDraftPnlCategory(null);
-      setSelectedPnlCategoryId(clean.id);
+      if (!draftPnlCategory.name?.trim()) return;
+      try {
+        const payload = {
+          name: draftPnlCategory.name.trim(),
+          type: draftPnlCategory.type === "INCOME" ? "INCOME" : "EXPENSE",
+          sequenceNumber: Number(draftPnlCategory.sequenceNumber || 0),
+          active: draftPnlCategory.active !== false
+        };
+        if (draftPnlCategory._isNew) {
+          const res = await api.post("/owner/pnl-categories", payload);
+          setPnlCategories((prev) => [...prev, res.data]);
+        } else {
+          const res = await api.patch(`/owner/pnl-categories/${draftPnlCategory.id}`, payload);
+          setPnlCategories((prev) => prev.map((r) => (r.id === draftPnlCategory.id ? res.data : r)));
+        }
+        cancelDraft();
+        setStatus({ loading: false, error: "", success: "PNL category saved." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not save PNL category"), success: "" });
+      }
     };
 
-    const deleteRow = (id) => {
-      updateArrayCollection("pnlCategories", form.advancedSettings.pnlCategories.filter((row) => row.id !== id));
-      if (selectedPnlCategoryId === id) {
-        setSelectedPnlCategoryId(null);
-        setDraftPnlCategory(null);
+    const deleteRow = async (id) => {
+      try {
+        await api.delete(`/owner/pnl-categories/${id}`);
+        setPnlCategories((prev) => prev.filter((r) => r.id !== id));
+        if (selectedPnlCategoryId === id) cancelDraft();
+        setStatus({ loading: false, error: "", success: "PNL category deleted." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not delete PNL category"), success: "" });
       }
     };
 
@@ -3496,8 +3686,8 @@ export default function SettingsPage() {
                       value={draftPnlCategory?.type ?? editing.type ?? "Expense"}
                       onChange={(event) => draftPnlCategory && setDraftPnlCategory({ ...draftPnlCategory, type: event.target.value })}
                     >
-                      <option value="Income">Income</option>
-                      <option value="Expense">Expense</option>
+                      <option value="INCOME">Income</option>
+                      <option value="EXPENSE">Expense</option>
                     </select>
                   </label>
                 </div>
@@ -4051,14 +4241,13 @@ export default function SettingsPage() {
   };
 
   const renderPnlIncomeTaxesSection = () => {
-    const rows = [...form.advancedSettings.pnlIncomeTaxes].sort((a, b) => Number(a.slabFrom || 0) - Number(b.slabFrom || 0));
+    const rows = [...taxSlabs].sort((a, b) => Number(a.slabFrom || 0) - Number(b.slabFrom || 0));
     const selectedRow = rows.find((row) => row.id === selectedPnlIncomeTaxId) || null;
     const editing = draftPnlIncomeTax || selectedRow;
 
     const startCreate = () => {
-      const newId = makeId("taxbucket");
-      setDraftPnlIncomeTax({ id: newId, slabFrom: 0, slabTo: 0, rate: 0, active: true, _isNew: true });
-      setSelectedPnlIncomeTaxId(newId);
+      setDraftPnlIncomeTax({ id: null, slabFrom: 0, slabTo: 0, rate: 0, active: true, _isNew: true });
+      setSelectedPnlIncomeTaxId(null);
     };
 
     const startEdit = (row) => {
@@ -4067,33 +4256,42 @@ export default function SettingsPage() {
     };
 
     const cancelDraft = () => {
-      if (draftPnlIncomeTax?._isNew) setSelectedPnlIncomeTaxId(null);
       setDraftPnlIncomeTax(null);
+      setSelectedPnlIncomeTaxId(null);
     };
 
-    const saveDraft = () => {
+    const saveDraft = async () => {
       if (!draftPnlIncomeTax) return;
-      const { _isNew, ...cleanDraft } = draftPnlIncomeTax;
-      const clean = {
-        ...cleanDraft,
-        slabFrom: Number(cleanDraft.slabFrom || 0),
-        slabTo: Number(cleanDraft.slabTo || 0),
-        rate: Number(cleanDraft.rate || 0),
-        name: cleanDraft.name || `${cleanDraft.slabFrom || 0}-${cleanDraft.slabTo || 0}`
-      };
-      const nextRows = _isNew
-        ? [...form.advancedSettings.pnlIncomeTaxes, clean]
-        : form.advancedSettings.pnlIncomeTaxes.map((row) => (row.id === clean.id ? clean : row));
-      updateArrayCollection("pnlIncomeTaxes", nextRows);
-      setDraftPnlIncomeTax(null);
-      setSelectedPnlIncomeTaxId(clean.id);
+      try {
+        const payload = {
+          name: draftPnlIncomeTax.name || `${Number(draftPnlIncomeTax.slabFrom || 0)}-${Number(draftPnlIncomeTax.slabTo || 0)}`,
+          slabFrom: Number(draftPnlIncomeTax.slabFrom || 0),
+          slabTo: Number(draftPnlIncomeTax.slabTo || 0),
+          rate: Number(draftPnlIncomeTax.rate || 0),
+          active: draftPnlIncomeTax.active !== false
+        };
+        if (draftPnlIncomeTax._isNew) {
+          const res = await api.post("/owner/tax-slabs", payload);
+          setTaxSlabs((prev) => [...prev, res.data]);
+        } else {
+          const res = await api.patch(`/owner/tax-slabs/${draftPnlIncomeTax.id}`, payload);
+          setTaxSlabs((prev) => prev.map((r) => (r.id === draftPnlIncomeTax.id ? res.data : r)));
+        }
+        cancelDraft();
+        setStatus({ loading: false, error: "", success: "Tax slab saved." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not save tax slab"), success: "" });
+      }
     };
 
-    const deleteRow = (id) => {
-      updateArrayCollection("pnlIncomeTaxes", form.advancedSettings.pnlIncomeTaxes.filter((row) => row.id !== id));
-      if (selectedPnlIncomeTaxId === id) {
-        setSelectedPnlIncomeTaxId(null);
-        setDraftPnlIncomeTax(null);
+    const deleteRow = async (id) => {
+      try {
+        await api.delete(`/owner/tax-slabs/${id}`);
+        setTaxSlabs((prev) => prev.filter((r) => r.id !== id));
+        if (selectedPnlIncomeTaxId === id) cancelDraft();
+        setStatus({ loading: false, error: "", success: "Tax slab deleted." });
+      } catch (err) {
+        setStatus({ loading: false, error: formatApiError(err, "Could not delete tax slab"), success: "" });
       }
     };
 
@@ -4476,14 +4674,7 @@ export default function SettingsPage() {
       case "referrals":
         return renderReferralSection();
       case "designation":
-        return renderSimpleListSection("Designation", "designations", "Maintain staff titles that can be assigned across teams and branches.", [
-          { key: "name", label: "Name" },
-          { key: "description", label: "Description" },
-          { key: "active", label: "Active", type: "checkbox" }
-        ], {
-          action: <Link className="secondary-button" to="/admin/users">Open Staff Users</Link>,
-          helper: "Saved designations appear in the staff create/edit form and are stored against each staff profile."
-        });
+        return renderDesignationSection();
       case "privacy-policy":
         return renderLegalSection("Privacy Policy", "privacyPolicy");
       case "terms-and-conditions":

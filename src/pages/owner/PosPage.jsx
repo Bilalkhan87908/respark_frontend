@@ -200,12 +200,19 @@ export default function PosPage() {
       setStatus({ error: "Discount cannot be negative.", success: "" });
       return;
     }
+    const maxDiscount = totals.subtotal + totals.itemTax;
     let finalDiscount = 0;
     if (discountDraft.type === "PERCENT") {
       const pct = Math.min(100, Math.max(0, val));
       finalDiscount = Number(((totals.subtotal + totals.itemTax) * pct / 100).toFixed(2));
     } else {
-      finalDiscount = val;
+      finalDiscount = Math.min(val, maxDiscount);
+    }
+    if (finalDiscount === 0) {
+      setForm(c => ({ ...c, discount: 0 }));
+      setShowDiscountModal(false);
+      setStatus({ error: "", success: "Discount removed." });
+      return;
     }
     setForm(c => ({ ...c, discount: finalDiscount }));
     setShowDiscountModal(false);
@@ -997,6 +1004,7 @@ export default function PosPage() {
       setStatus({ error: "", success: `Invoice ${response.data.invoiceNumber} ${mode === "complete" ? "created and completed" : "created"}.` });
       
       const invoiceId = response.data.id;
+      let tipErrors = [];
       for (const tip of tipEntries) {
         if (Number(tip.amount || 0) > 0 && tip.staffId) {
           try {
@@ -1008,10 +1016,14 @@ export default function PosPage() {
             });
           } catch (tipErr) {
             console.error("Tip failed:", tipErr);
+            tipErrors.push(tip.staffName || "Staff");
           }
         }
       }
       setTipEntries([]);
+      if (tipErrors.length > 0) {
+        setToastMessage({ type: "error", title: "Tip Failed", message: `Tip could not be saved for: ${tipErrors.join(", ")}. Invoice was created successfully.` });
+      }
 
       if (mode === "complete") {
         setCreatedInvoice(response.data);
@@ -1666,7 +1678,7 @@ export default function PosPage() {
               {status.error && <span style={{ color: "#ef4444", fontWeight: 500, fontSize: "13px" }}>{status.error}</span>}
               {status.success && <span style={{ color: "#10b981", fontWeight: 500, fontSize: "13px" }}>{status.success}</span>}
             </div>
-            <button type="button" className="pos-btn-clear" onClick={() => setForm(c => ({ ...c, items: [] }))}>Clear</button>
+            <button type="button" className="pos-btn-clear" onClick={() => { setForm(c => ({ ...c, items: [], discount: 0, giftVoucherCode: "", packageRedemptions: [] })); setTipEntries([]); }}>Clear</button>
             <button type="button" className="pos-btn-create" disabled={submitting} onClick={() => !submitting && submitInvoice("draft")}>Create</button>
             <button type="button" className="pos-btn-complete" disabled={submitting} onClick={() => !submitting && submitInvoice("complete")}>Create & Complete</button>
           </div>

@@ -204,7 +204,7 @@ export default function PosPage() {
   const confirmDiscount = () => {
     const val = Number(discountDraft.value || 0);
     if (val < 0) {
-      setStatus({ error: "Discount cannot be negative.", success: "" });
+      setToastMessage({ type: "error", title: "Invalid Discount", message: "Discount cannot be negative." });
       return;
     }
     const maxDiscount = totals.subtotal + totals.itemTax;
@@ -218,28 +218,32 @@ export default function PosPage() {
     if (finalDiscount === 0) {
       setForm(c => ({ ...c, discount: 0 }));
       setShowDiscountModal(false);
-      setStatus({ error: "", success: "Discount removed." });
+      setToastMessage({ type: "success", title: "Discount Removed", message: "Discount has been cleared." });
       return;
     }
     setForm(c => ({ ...c, discount: finalDiscount }));
     setShowDiscountModal(false);
-    setStatus({ error: "", success: `Discount of ${formatMoney(finalDiscount)} applied.` });
+    setToastMessage({ type: "success", title: "Discount Applied", message: `${discountDraft.type === "PERCENT" ? discountDraft.value + "% off" : formatMoney(finalDiscount)} discount applied successfully.` });
   };
 
   // === Apply Package ===
   const loadCustomerPackagesForRedemption = async () => {
     if (!form.customerId) {
-      setStatus({ error: "Please select a guest first.", success: "" });
       setToastMessage({ type: "error", title: "Guest Required", message: "Please select a guest first." });
       return;
     }
     setLoadingCustomerPkgs(true);
     try {
       const response = await api.get(`/owner/customers/${form.customerId}/packages`);
-      setCustomerPackages((response.data || []).filter(p => p.status === "ACTIVE" && new Date(p.endsAt) > new Date()));
-      setShowApplyPkgRedemptionModal(true);
+      const activePkgs = (response.data || []).filter(p => p.status === "ACTIVE" && new Date(p.endsAt) > new Date());
+      setCustomerPackages(activePkgs);
+      if (activePkgs.length === 0) {
+        setToastMessage({ type: "error", title: "No Active Packages", message: "No active packages found for this guest." });
+      } else {
+        setShowApplyPkgRedemptionModal(true);
+      }
     } catch (err) {
-      setStatus({ error: formatApiError(err, "Could not load customer packages"), success: "" });
+      setToastMessage({ type: "error", title: "Error", message: formatApiError(err, "Could not load customer packages") });
     } finally {
       setLoadingCustomerPkgs(false);
     }
@@ -250,12 +254,12 @@ export default function PosPage() {
       (item.serviceId === serviceEntry.serviceId || item.serviceId === serviceEntry.service?.id) && Number(item.unitPrice || 0) > 0
     );
     if (matchedItemIndex === -1) {
-      setStatus({ error: `Service "${serviceEntry.service?.name || serviceEntry.serviceId}" not found in cart or already free.`, success: "" });
+      setToastMessage({ type: "error", title: "Service Not Found", message: `"${serviceEntry.service?.name || serviceEntry.serviceId}" not found in cart or already free.` });
       return;
     }
     const remaining = (serviceEntry.sessions || 0) - (serviceEntry.sessionsUsed || 0);
     if (remaining <= 0) {
-      setStatus({ error: `No remaining sessions for "${serviceEntry.service?.name || serviceEntry.serviceId}".`, success: "" });
+      setToastMessage({ type: "error", title: "No Sessions Left", message: `No remaining sessions for "${serviceEntry.service?.name || serviceEntry.serviceId}".` });
       return;
     }
     const item = form.items[matchedItemIndex];
@@ -277,13 +281,13 @@ export default function PosPage() {
       ]
     }));
     setShowApplyPkgRedemptionModal(false);
-    setStatus({ error: "", success: "Package applied successfully" });
+    setToastMessage({ type: "success", title: "Package Applied", message: `${serviceEntry.service?.name || "Service"} applied from package.` });
   };
 
   // === Apply Gift Card ===
   const validateGiftCard = async () => {
     if (!gcRedemptionCode.trim()) {
-      setStatus({ error: "Please enter a gift card code.", success: "" });
+      setToastMessage({ type: "error", title: "Code Required", message: "Please enter a gift card code." });
       return;
     }
     setGcRedemptionLoading(true);
@@ -293,7 +297,7 @@ export default function PosPage() {
       setGcRedemptionResult(response.data);
     } catch (err) {
       setGcRedemptionResult(null);
-      setStatus({ error: formatApiError(err, "Invalid gift card"), success: "" });
+      setToastMessage({ type: "error", title: "Invalid Gift Card", message: formatApiError(err, "Gift card is invalid or expired.") });
     } finally {
       setGcRedemptionLoading(false);
     }
@@ -308,24 +312,24 @@ export default function PosPage() {
     setShowGcRedemptionModal(false);
     setGcRedemptionCode("");
     setGcRedemptionResult(null);
-    setStatus({ error: "", success: `Gift card applied: ${formatMoney(applyAmount)} (will be deducted at checkout as WALLET payment)` });
+    setToastMessage({ type: "success", title: "Gift Card Applied", message: `${formatMoney(applyAmount)} deducted from gift card at checkout.` });
   };
 
   // === Add Tip ===
   const addTipEntry = () => {
     const amount = Number(tipDraft.amount || 0);
     if (amount <= 0) {
-      setStatus({ error: "Tip amount must be greater than zero.", success: "" });
+      setToastMessage({ type: "error", title: "Invalid Amount", message: "Tip amount must be greater than zero." });
       return;
     }
     if (!tipDraft.staffId) {
-      setStatus({ error: "Please select a staff member for the tip.", success: "" });
+      setToastMessage({ type: "error", title: "Staff Required", message: "Please select a staff member for the tip." });
       return;
     }
     const staffName = (context.staffUsers || []).find(s => s.id === tipDraft.staffId)?.user?.name || "Staff";
     setTipEntries(prev => [...prev, { staffId: tipDraft.staffId, staffName, amount, paymentMode: tipDraft.paymentMode }]);
     setTipDraft({ staffId: "", amount: "", paymentMode: "CASH" });
-    setStatus({ error: "", success: `Tip of ${formatMoney(amount)} added for ${staffName}.` });
+    setToastMessage({ type: "success", title: "Tip Added", message: `${formatMoney(amount)} tip added for ${staffName}.` });
   };
 
   const removeTipEntry = (index) => {
@@ -1001,14 +1005,14 @@ export default function PosPage() {
     setStatus({ error: "", success: "" });
     const validationError = validateBeforeSubmit(mode);
     if (validationError) {
-      setStatus({ error: validationError, success: "" });
+      setToastMessage({ type: "error", title: "Validation Failed", message: validationError });
       return;
     }
     setSubmitting(true);
     try {
       const response = await api.post("/owner/pos/invoices", buildInvoicePayload(mode));
       setResult(response.data);
-      setStatus({ error: "", success: `Invoice ${response.data.invoiceNumber} ${mode === "complete" ? "created and completed" : "created"}.` });
+      setToastMessage({ type: "success", title: "Invoice Created", message: `${response.data.invoiceNumber} ${mode === "complete" ? "created & completed" : "created"}.` });
       
       const invoiceId = response.data.id;
       let tipErrors = [];
@@ -1056,7 +1060,7 @@ export default function PosPage() {
       });
       await loadContext("", form.branchId);
     } catch (error) {
-      setStatus({ error: formatApiError(error, "Could not create invoice"), success: "" });
+      setToastMessage({ type: "error", title: "Invoice Failed", message: formatApiError(error, "Could not create invoice") });
     } finally {
       setSubmitting(false);
     }

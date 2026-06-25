@@ -51,9 +51,9 @@ const COLUMNS = {
   sales_summary: ["SR. NO.", "DATE", "TIME", "INVOICE NO", "GUEST NAME", "GUEST NUMBER", "ITEMS", "GROSS AMOUNT", "DISCOUNT", "TAX", "NET TOTAL", "PAID AMOUNT", "DUE AMOUNT", "PAYMENT MODE"],
   product_sales: ["SR. NO.", "DATE", "TIME", "GUEST NAME", "GUEST NUMBER", "INVOICE NO", "PRODUCT", "CATEGORY", "QTY", "UNIT PRICE", "COMPLIMENTARY", "REDEMPTION AMOUNT", "TAX", "SUBTOTAL", "TOTAL", "PAYMENT MODE"],
   service_sales: ["SR. NO.", "Date", "Time", "Guest Name", "Guest Number", "Staff", "Invoice No", "Service", "Category", "Duration", "Qty", "Unit Price", "Discount", "Complimentary", "Redemption Amount", "Redemption Sources", "Tax", "Subtotal", "Total"],
-  staff_performance: ["Staff", "Appointments", "Completed", "Revenue", "Commission", "Qty"],
+  staff_performance: ["SR. NO.", "STAFF", "TOTAL SERVICES DONE", "UNIQUE GUEST COUNT", "SERVICES WITHOUT TAX", "PRODUCTS WITHOUT TAX", "AVERAGE RETAIL SALE", "PACKAGES REVENUE", "PACKAGES SOLD", "MEMBERSHIP SOLD", "MEMBERSHIP REVENUE", "GIFTCARD REVENUE", "DISCOUNT", "TOTAL WITHOUT TAX", "COMPLIMENTARY AMOUNT", "REDEMPTION AMOUNT", "AVERAGE BILL VALUE"],
   monthly_sale: ["SR. NO.", "DATE", "INVOICE", "GUEST NAME", "GUEST NUMBER", "STAFF", "SUBTOTAL", "DISCOUNT", "INCLUSIVE TAX", "EXCLUSIVE TAX", "TOTAL", "PAYMENT MODE", "REDEMPTION AMOUNT", "BALANCE CLEARED", "ACTUAL TOTAL"],
-  day_wise: ["Date", "Invoices", "Cash", "Card", "UPI", "Online", "Total"],
+  day_wise: ["SR. NO.", "DATE", "SERVICE REVENUE", "PRODUCT REVENUE", "MEMBERSHIP REVENUE", "PACKAGE REVENUE", "GIFTCARD REVENUE", "INCLUSIVE TAX", "EXCLUSIVE TAX", "TOTAL TAX", "DISCOUNT", "ADVANCE ADDED", "TOTAL REVENUE", "ONLINE", "OFFLINE", "BALANCE"],
   tip_report: ["SR. NO.", "DATE", "GUEST NAME", "GUEST NUMBER", "INVOICE NO", "STAFF", "TIP AMOUNT", "PAYMENT MODE"],
   complimentary: ["Date", "Service", "Staff", "Customer", "Reason", "Value"],
   cancelled_invoices: ["Invoice", "Customer", "Branch", "Status", "Total", "Paid", "Refunded"],
@@ -68,7 +68,7 @@ const COLUMNS = {
   memberships: ["Date", "Customer", "Membership Plan", "Price", "Validity", "Branch"],
   membership_redemption: ["Date", "Customer", "Membership", "Service Redeemed", "Sessions Used", "Remaining"],
   inter_store_membership: ["Date", "Customer", "Home Branch", "Redeemed Branch", "Service", "Value Transfer"],
-  packages: ["Date", "Customer", "Package", "Price Paid", "Validity", "Services Included"],
+  packages: ["SR. NO.", "INVOICE NO.", "PURCHASE DATE", "BUSINESS DATE", "EXPIRY DATE", "GUEST NAME", "GUEST NUMBER", "STAFF", "PACKAGE NAME", "SUBTOTAL", "TAX", "TOTAL", "PAYMENT MODE", "PURCHASE SOURCE"],
   package_redemption: ["Date", "Customer", "Package", "Service Redeemed", "Sessions Used", "Remaining"],
   gift_card_sold: ["Date", "Code", "Customer", "Value", "Expiry", "Branch"],
   gift_card_redemption: ["Date", "Code", "Customer", "Amount Used", "Invoice #", "Remaining Balance"],
@@ -125,7 +125,12 @@ const REPORT_FILTERS = {
     { key: "basedOn", label: "Based ON", type: "select", options: [{ value: "purchased", label: "Purchased" }, { value: "created", label: "Created" }], defaultValue: "purchased" }
   ],
   memberships: [
-    { key: "type", label: "Type", type: "select", options: [{ value: "all", label: "All" }, { value: "membership", label: "Membership" }, { value: "package", label: "Package" }], defaultValue: "all" }
+    { key: "stylistId", label: "Stylist", type: "select", endpoint: "/owner/staff-users", optionLabel: "name", defaultLabel: "All" },
+    { key: "type", label: "Type", type: "select", options: [{ value: "all", label: "All" }, { value: "membership", label: "Membership" }, { value: "package", label: "Package" }], defaultValue: "all" },
+    { key: "categoryId", label: "Category", type: "select", endpoint: "/owner/service-categories", optionLabel: "name", defaultLabel: "All" },
+    { key: "upgraded", label: "Upgraded", type: "select", options: [{ value: "all", label: "All" }, { value: "yes", label: "Yes" }, { value: "no", label: "No" }], defaultValue: "all" },
+    { key: "status", label: "Status", type: "select", options: [{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "expired", label: "Expired" }], defaultValue: "all" },
+    { key: "basedOn", label: "Based ON", type: "select", options: [{ value: "purchased", label: "Purchased" }, { value: "created", label: "Created" }], defaultValue: "purchased" }
   ],
   packages: [
     { key: "stylistId", label: "Stylist", type: "select", endpoint: "/owner/staff-users", optionLabel: "name", defaultLabel: "All" },
@@ -156,12 +161,12 @@ const REPORT_FILTERS = {
     { key: "productId", label: "Item", type: "select", endpoint: "/owner/inventory/products", optionLabel: "name" }
   ],
   material_received: [
-    { key: "productId", label: "Item", type: "select", endpoint: "/owner/inventory/products", optionLabel: "name" },
-    { key: "transactionId", label: "Transaction Id", type: "select", options: [{ value: "all", label: "All" }], defaultValue: "all" },
-    { key: "vendorId", label: "Vendor", type: "select", endpoint: "/owner/purchases/vendors", optionLabel: "name", defaultLabel: "All" },
-    { key: "vendorInvoiceId", label: "Vendor Invoice Id", type: "select", options: [{ value: "all", label: "All" }], defaultValue: "all" }
+    { key: "productId", label: "Item", type: "select", endpoint: "/owner/inventory/products", optionLabel: "name", defaultLabel: "All" },
+    { key: "vendorId", label: "Vendor", type: "select", endpoint: "/owner/purchases/vendors", optionLabel: "name", defaultLabel: "All" }
   ],
-  minimum_stock: [],
+  minimum_stock: [
+    { key: "productId", label: "Item", type: "select", endpoint: "/owner/inventory/products", optionLabel: "name", defaultLabel: "All" }
+  ],
   reconcile_stock: [],
   consumable_tracking: [],
   total_consumed: [],
@@ -197,7 +202,7 @@ const REPORTS_WITH_CHARTS = new Set([
   "inter_store_membership", "staff_attendance", "gift_card_redemption"
 ]);
 
-const REPORTS_WITH_COLUMN_PICKER = new Set(["day_wise"]);
+const REPORTS_WITH_COLUMN_PICKER = new Set(Object.keys(COLUMNS));
 
 const buildDefaultFilterValues = (filterConfig) => {
   const defaults = {};
@@ -231,7 +236,7 @@ const REPORT_ENDPOINTS = {
   advance_received: "/reports/advance-received",
   balance_received: "/reports/balance-received",
   coupon_redemption: "/reports/coupon-redemption",
-  day_wise: "/reports/branch-sales",
+  day_wise: "/reports/day-wise",
   tip_report: "/reports/tip",
   complimentary: "/reports/complimentary",
   cancelled_invoices: "/reports/cancelled-invoices",
@@ -1735,9 +1740,21 @@ export default function ReportsHubPage() {
               transition: "all 0.15s ease"
             }} disabled={loading}>{loading ? "Loading..." : "Show Report"}</button>
             {activeReport !== "sales_summary" && (
-              <button type="button" className="rpt-btn rpt-btn-dark" onClick={handleExportCSV}>Export CSV</button>
+              <button type="button" className="rpt-icon-btn" title="Export CSV" onClick={handleExportCSV}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </button>
             )}
-            <button type="button" className="rpt-btn rpt-btn-blue" onClick={() => window.print()}>Print</button>
+            <button type="button" className="rpt-icon-btn" title="Print" onClick={() => window.print()}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 6 2 18 2 18 9" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <rect x="6" y="14" width="12" height="8" />
+              </svg>
+            </button>
           </div>
         </div>
 

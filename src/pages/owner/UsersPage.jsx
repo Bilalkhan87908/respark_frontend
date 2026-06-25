@@ -717,11 +717,91 @@ export default function UsersPage() {
                 </div>
 
                 <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                  <label>Role Title (Visible designation)</label>
+                  <input type="text" className="hub-input" value={form.roleTitle} onChange={e => setForm({ ...form, roleTitle: e.target.value })} placeholder="e.g. Senior Stylist, Floor Manager" />
+                </div>
+
+                <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                  <label>Phone</label>
+                  <IndianPhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} className="hub-input" inputStyle={{ padding: "12px 14px" }} />
+                </div>
+
+                <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                  <label>Avatar URL</label>
+                  <input type="text" className="hub-input" value={form.avatarUrl} onChange={e => setForm({ ...form, avatarUrl: e.target.value })} placeholder="https://example.com/avatar.jpg" />
+                </div>
+
+                <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                  <div className="hub-toggle-group">
+                    <input type="checkbox" checked={form.showInCatalog} onChange={(event) => setForm({ ...form, showInCatalog: event.target.checked })} />
+                    <span>Show this staff member in salon catalog / expert listing</span>
+                  </div>
+                </div>
+
+                <div className="hub-form-group" style={{ marginBottom: 16 }}>
                   <label>Designation</label>
                   <select className="hub-input" value={designationOptions.includes(form.designation) ? form.designation : ""} onChange={e => setForm({ ...form, designation: e.target.value })}>
                     <option value="">Select designation</option>
                     {designationOptions.map((designation) => <option key={designation} value={designation}>{designation}</option>)}
                   </select>
+                </div>
+
+                <h4 style={{ fontSize: 14, color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: 8, margin: '8px 0 12px' }}>Employment & HR Details</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>Date of Joining</label>
+                    <input type="date" className="hub-input" value={form.joiningDate} onChange={e => setForm({ ...form, joiningDate: e.target.value })} />
+                  </div>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>UAN Number</label>
+                    <input type="text" className="hub-input" value={form.uanNumber} onChange={e => setForm({ ...form, uanNumber: e.target.value })} placeholder="12-digit UAN" />
+                  </div>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>Working Hours</label>
+                    <input type="text" className="hub-input" value={form.workingHours} onChange={e => setForm({ ...form, workingHours: e.target.value })} placeholder="e.g. 10:00 AM - 07:00 PM" />
+                  </div>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>Reporting To</label>
+                    <select className="hub-input" value={form.reportingToId} onChange={e => setForm({ ...form, reportingToId: e.target.value })}>
+                      <option value="">None / Self</option>
+                      {rows.map((r) => <option key={r.id} value={r.id}>{r.user?.name || r.phone}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <h4 style={{ fontSize: 14, color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: 8, margin: '8px 0 12px' }}>Bank & Payroll Details</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>Bank Name</label>
+                    <input type="text" className="hub-input" value={form.bankName} onChange={e => setForm({ ...form, bankName: e.target.value })} placeholder="e.g. HDFC Bank" />
+                  </div>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>Branch Name</label>
+                    <input type="text" className="hub-input" value={form.bankBranch} onChange={e => setForm({ ...form, bankBranch: e.target.value })} placeholder="Branch Area" />
+                  </div>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>Account Number</label>
+                    <input type="text" className="hub-input" value={form.accountNumber} onChange={e => setForm({ ...form, accountNumber: e.target.value })} placeholder="Account No." />
+                  </div>
+                  <div className="hub-form-group" style={{ marginBottom: 16 }}>
+                    <label>IFSC / Routing Code</label>
+                    <input type="text" className="hub-input" value={form.ifscCode} onChange={e => setForm({ ...form, ifscCode: e.target.value })} placeholder="IFSC Code" />
+                  </div>
+                </div>
+
+                <h4 style={{ fontSize: 14, color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: 8, margin: '8px 0 12px' }}>Assigned Services</h4>
+                <div className="staff-chip-grid" style={{ marginBottom: 16 }}>
+                  {filteredServices.map((service) => (
+                    <label key={service.id} className={`staff-service-chip ${form.serviceIds.includes(service.id) ? "selected" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={form.serviceIds.includes(service.id)}
+                        onChange={() => toggleServiceId(service.id)}
+                      />
+                      <span>{service.name}</span>
+                      <small>{service.branch?.name || "Shared"}</small>
+                    </label>
+                  ))}
                 </div>
               </div>
 

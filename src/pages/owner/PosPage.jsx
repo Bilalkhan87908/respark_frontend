@@ -190,6 +190,13 @@ export default function PosPage() {
 
   // === Apply Discount ===
   const openDiscountModal = () => {
+    const eligibleItems = form.items.filter(item =>
+      (item.serviceId || item.productId) && Number(item.unitPrice || 0) > 0
+    );
+    if (eligibleItems.length === 0) {
+      setToastMessage({ type: "error", title: "No Eligible Items", message: "No eligible items for discount" });
+      return;
+    }
     setDiscountDraft({ type: "FIX", value: String(form.discount || "") });
     setShowDiscountModal(true);
   };

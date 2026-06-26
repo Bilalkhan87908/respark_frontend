@@ -139,13 +139,16 @@ button {
 }
 
 button:hover {
-  background: var(--button-bg-hover, var(--button-bg, linear-gradient(135deg, #0f766e, #0ea5e9)));
-  filter: brightness(1.05);
   transform: translateY(-1px);
 }
 
+button:not(.btn-cancel):not(.btn-submit):not(.secondary-button):not(.crm-btn):not(.blue-btn-secondary):not(.eq-btn-secondary):not(.danger-button):hover {
+  background: var(--button-bg-hover, var(--button-bg, linear-gradient(135deg, #0f766e, #0ea5e9)));
+  filter: brightness(1.05);
+}
+
 button.secondary-button:hover {
-  background: white;
+  background: #e2e8f0;
 }
 
 button.danger-button:hover {

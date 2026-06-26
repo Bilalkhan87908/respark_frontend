@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { X } from 'lucide-react';
 import { api } from '../../api/client';
 import EmptyState from '../../components/EmptyState';
 import { formatApiError } from '../../utils/apiError';
@@ -404,7 +405,10 @@ export default function ServiceHubPage() {
       {isCategoryModalOpen && (
         <div className="hub-modal-overlay" onClick={() => setIsCategoryModalOpen(false)}>
           <form className="hub-modal-content" onSubmit={handleCategorySubmit} onClick={(e) => e.stopPropagation()}>
-            <div className="hub-modal-header">New Category</div>
+            <div className="hub-modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              New Category
+              <button type="button" onClick={() => setIsCategoryModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#60a5fa", padding: 4, display: "flex" }}><X size={18} /></button>
+            </div>
             <div className="hub-modal-body">
               <div className="hub-form-group">
                 <label>Name *</label>
@@ -431,7 +435,10 @@ export default function ServiceHubPage() {
       {isServiceModalOpen && (
         <div className="hub-modal-overlay" onClick={() => setIsServiceModalOpen(false)}>
           <form className="hub-modal-content" onSubmit={handleServiceSubmit} onClick={(e) => e.stopPropagation()}>
-            <div className="hub-modal-header">{editingId ? 'Edit Service' : 'New Service'}</div>
+            <div className="hub-modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{editingId ? 'Edit Service' : 'New Service'}</span>
+              <button type="button" onClick={() => setIsServiceModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#60a5fa", padding: 4, display: "flex" }}><X size={18} /></button>
+            </div>
             <div className="hub-modal-body">
               <div className="hub-form-row">
                 <div className="hub-form-group" style={{ flex: 2 }}>

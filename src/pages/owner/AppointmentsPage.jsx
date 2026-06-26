@@ -1852,7 +1852,7 @@ export default function AppointmentsPage() {
                     <div style={{ display: "flex", gap: 12 }}>
                       <button type="submit" className="sp-btn-primary" style={{ flex: 1 }}>Update</button>
                       {form.status !== "CANCELLED" && (
-                        <button type="button" className="sp-btn-primary" style={{ flex: 1, background: "white", color: "#ef4444", border: "1px solid #ef4444" }} onClick={handleCancelAppointment}>Cancel Appointment</button>
+                        <button type="button" className="sp-btn-primary" style={{ flex: 1, background: "#f1f5f9", color: "#ef4444", border: "1px solid #ef4444" }} onClick={handleCancelAppointment}>Cancel Appointment</button>
                       )}
                     </div>
                     {form.status !== "CHECKED_IN" && form.status !== "COMPLETED" && (
@@ -1873,11 +1873,12 @@ export default function AppointmentsPage() {
 
       {showConfirmModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 450, boxShadow: "none" }}>
+          <div style={{ background: "white", borderRadius: 12, padding: 24, width: "100%", maxWidth: 450, boxShadow: "none", position: "relative" }}>
+            <button type="button" onClick={() => setShowConfirmModal(false)} style={{ position: "absolute", top: 12, right: 12, background: "#f1f5f9", border: "none", borderRadius: "50%", cursor: "pointer", padding: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}><X size={16} /></button>
             <h3 style={{ color: "var(--accent, #3b82f6)", marginTop: 0, marginBottom: 16, fontSize: "1.1rem", fontWeight: 600 }}>{editMode ? "Confirm Update" : "Create & Confirm Appointment"}</h3>
             <p style={{ color: "#475569", fontSize: "0.95rem", marginBottom: 24 }}>{editMode ? "Are you sure you want to update these services?" : "Are you sure, you want to create & confirm an appointment?"}</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <button type="button" onClick={() => setShowConfirmModal(false)} style={{ padding: "8px 20px", border: "1px solid var(--accent, #3b82f6)", background: "white", color: "var(--accent, #3b82f6)", borderRadius: 6, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseOver={(e) => e.target.style.background = "#eff6ff"} onMouseOut={(e) => e.target.style.background = "white"}>NO</button>
+              <button type="button" onClick={() => setShowConfirmModal(false)} style={{ padding: "8px 20px", border: "1px solid var(--accent, #3b82f6)", background: "#f1f5f9", color: "var(--accent, #3b82f6)", borderRadius: 6, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseOver={(e) => e.target.style.background = "#e2e8f0"} onMouseOut={(e) => e.target.style.background = "#f1f5f9"}>NO</button>
               <button type="button" onClick={handleConfirmSubmit} style={{ padding: "8px 20px", border: "none", background: "var(--button-bg-solid, #3b82f6)", color: "white", borderRadius: 6, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }} onMouseOver={(e) => e.target.style.background = "#2563eb"} onMouseOut={(e) => e.target.style.background = "#3b82f6"}>YES</button>
             </div>
           </div>

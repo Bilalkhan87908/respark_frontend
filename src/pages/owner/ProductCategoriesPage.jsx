@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { X } from "lucide-react";
 import { api } from "../../api/client";
 import { formatApiError } from "../../utils/apiError";
 import { useSalonSettings } from "../../context/SalonSettingsContext";
@@ -250,7 +251,10 @@ export default function ProductCategoriesPage() {
       {showCategoryModal && (
         <div className="hub-modal-overlay" onClick={() => setShowCategoryModal(false)}>
           <div className="hub-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <div className="hub-modal-header">New Category</div>
+            <div className="hub-modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              New Category
+              <button type="button" onClick={() => setShowCategoryModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#60a5fa", padding: 4, display: "flex" }}><X size={18} /></button>
+            </div>
             <form onSubmit={handleSaveCategory} style={{ padding: 24 }}>
               <div className="hub-form-group" style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#475569", marginBottom: 4, display: "block" }}>Name *</label>
@@ -281,8 +285,9 @@ export default function ProductCategoriesPage() {
       {showProductModal && (
         <div className="hub-modal-overlay" onClick={() => setShowProductModal(false)}>
           <div className="hub-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 640, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-            <div className="hub-modal-header">
-              {selectedCategory ? `${selectedCategory.name} → ` : ""}{editingProduct ? "Edit Item" : "New Item"}
+            <div className="hub-modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{selectedCategory ? `${selectedCategory.name} → ` : ""}{editingProduct ? "Edit Item" : "New Item"}</span>
+              <button type="button" onClick={() => setShowProductModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#60a5fa", padding: 4, display: "flex" }}><X size={18} /></button>
             </div>
             <form onSubmit={handleSaveProduct} style={{ display: "flex", flexDirection: "column", overflow: "hidden", flex: 1 }}>
               <div className="hub-modal-body" style={{ overflowY: "auto", flex: 1, padding: 24 }}>

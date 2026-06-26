@@ -2403,7 +2403,7 @@ export default function CustomersPage() {
 
             {/* Footer */}
             <div style={{ padding: "16px 28px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 12, background: "#f8fafc" }}>
-              <button onClick={() => setShowAssignMembershipModal(false)} style={{ padding: "10px 20px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: "0.9rem", transition: "all 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#f1f5f9"} onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}>Cancel</button>
+              <button onClick={() => setShowAssignMembershipModal(false)} style={{ padding: "10px 20px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 8, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: "0.9rem", transition: "all 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#e2e8f0"} onMouseLeave={(e) => e.currentTarget.style.background = "#f1f5f9"}>Cancel</button>
               <button 
                 onClick={handleAssignMembership} 
                 disabled={!selectedPlan || !membershipForm.staffId} 
@@ -2648,7 +2648,7 @@ export default function CustomersPage() {
 
             {/* Footer */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", borderTop: "1px solid #f1f5f9", paddingTop: "20px" }}>
-              <button onClick={() => setShowGiftCardModal(false)} style={{ padding: "10px 24px", border: "1px solid #cbd5e1", background: "white", borderRadius: 6, cursor: "pointer", fontWeight: 600, color: "#475569" }}>Cancel</button>
+              <button onClick={() => setShowGiftCardModal(false)} style={{ padding: "10px 24px", border: "1px solid #cbd5e1", background: "#f1f5f9", borderRadius: 6, cursor: "pointer", fontWeight: 600, color: "#475569" }}>Cancel</button>
               <button onClick={handleIssueGiftCard} disabled={!giftCardForm.amount || !giftCardForm.title} style={{ padding: "10px 24px", border: "none", background: "var(--button-bg-solid, #3b82f6)", borderRadius: 6, cursor: "pointer", fontWeight: 600, color: "white" }}>Add Gift Card</button>
             </div>
           </div>
@@ -2994,7 +2994,7 @@ export default function CustomersPage() {
 
             {/* Footer */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <button onClick={() => setShowPackageModal(false)} style={{ padding: "10px 24px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: "0.9rem" }}>Cancel</button>
+              <button onClick={() => setShowPackageModal(false)} style={{ padding: "10px 24px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 6, fontWeight: 600, cursor: "pointer", color: "#475569", fontSize: "0.9rem" }}>Cancel</button>
               <button onClick={handleAssignPackage} style={{ padding: "10px 24px", background: "var(--button-bg-solid, #3b82f6)", color: "#fff", border: "none", borderRadius: 6, fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>Add Package</button>
             </div>
           </div>

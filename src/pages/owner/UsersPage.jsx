@@ -1,4 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { api } from "../../api/client";
 import "./ServiceHubPage.css";
 import IndianPhoneInput from "../../components/IndianPhoneInput";
@@ -669,7 +670,10 @@ export default function UsersPage() {
       {isCreateModalOpen && (
         <div className="hub-modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
           <div className="hub-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div className="hub-modal-header">Create New Staff</div>
+            <div className="hub-modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              Create New Staff
+              <button type="button" onClick={() => setIsCreateModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#60a5fa", padding: 4, display: "flex" }}><X size={18} /></button>
+            </div>
             
             <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', minHeight: 0 }}>
               <div className="hub-modal-body" style={{ overflowY: 'auto', flex: 1 }}>

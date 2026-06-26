@@ -282,7 +282,7 @@ export default function EnquiriesPage() {
         .eq-btn-primary { background: #1e88e5; color: white; box-shadow: none; }
         .eq-btn-primary:hover { transform: translateY(-1px); background: #1565c0; box-shadow: none; }
         
-        .eq-btn-secondary { background: white; border: 1px solid #cbd5e1; color: #475569; }
+        .eq-btn-secondary { background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; }
         .eq-btn-secondary:hover { background: #f8fafc; border-color: #94a3b8; }
 
         .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }

@@ -435,7 +435,7 @@ export default function VendorManagement({ branches = [], formatMoney }) {
                     Vendor Items
                   </button>
                 )}
-                <button type="button" onClick={() => setMode("list")} style={{ padding: "12px 24px", background: "white", border: "1px solid #cbd5e1", color: "#475569", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}>
+                <button type="button" onClick={() => setMode("list")} style={{ padding: "12px 24px", background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#475569", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}>
                   Cancel
                 </button>
                 <button type="submit" disabled={loading} style={{ padding: "12px 32px", background: "var(--button-bg-solid, #3b82f6)", color: "white", border: "none", borderRadius: 8, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
@@ -550,7 +550,7 @@ export default function VendorManagement({ branches = [], formatMoney }) {
               </table>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
-                <button onClick={() => setMode("edit")} style={{ padding: "12px 24px", background: "white", border: "1px solid #cbd5e1", color: "#475569", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={() => setMode("edit")} style={{ padding: "12px 24px", background: "#f1f5f9", border: "1px solid #cbd5e1", color: "#475569", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}>
                   Back
                 </button>
                 <button onClick={() => setMode("edit")} style={{ padding: "12px 32px", background: "var(--button-bg-solid, #3b82f6)", color: "white", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer" }}>

@@ -3253,7 +3253,7 @@ export default function SettingsPage() {
     const updateSegment = (id, patch) => updateArrayCollection("crmSegments", segments.map((item) => item.id === id ? { ...item, ...patch } : item));
     return (
       <>
-        <SectionHeader title="CRM Segment" description="Create reusable customer segments for campaigns, loyalty outreach, and targeted service pushes." badges={[`${segments.length} saved segments`, `${summary.customers.length} live customers`]} action={<Link className="secondary-button" to="/admin/campaigns">Open Campaigns</Link>} />
+        <SectionHeader title="CRM Referral" description="Create reusable customer referrals for campaigns, loyalty outreach, and targeted service pushes." badges={[`${segments.length} saved referrals`, `${summary.customers.length} live customers`]} action={<Link className="secondary-button" to="/admin/campaigns">Open Campaigns</Link>} />
         <div className="settings-list-stack">
           {segments.map((segment) => (
             <div key={segment.id} className="settings-panel-card">
@@ -3291,7 +3291,7 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
-        <button type="button" onClick={() => updateArrayCollection("crmSegments", [...segments, { id: makeId("segment"), name: "", description: "", filterType: "ALL_CUSTOMERS", serviceId: "", active: true }])}>Create Segment</button>
+        <button type="button" onClick={() => updateArrayCollection("crmSegments", [...segments, { id: makeId("segment"), name: "", description: "", filterType: "ALL_CUSTOMERS", serviceId: "", active: true }])}>Create Referral</button>
       </>
     );
   };

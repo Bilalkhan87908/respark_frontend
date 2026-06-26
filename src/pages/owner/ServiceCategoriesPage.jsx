@@ -150,7 +150,7 @@ export default function ServiceCategoriesPage() {
 
   const openNewService = () => {
     if (!selectedSubId) {
-      setError("Pehle subcategory select karo, phir service add hogi.");
+      setError("First select a subcategory, then services can be added.");
       return;
     }
     setStatus({ error: "", success: "" });
@@ -180,7 +180,7 @@ export default function ServiceCategoriesPage() {
 
   const addCategory = async () => {
     if (!catInput.trim() || catInput.trim().length < 2) {
-      setError("Category name kam az kam 2 characters ka hona chahiye.");
+      setError("Category name must be at least 2 characters.");
       return;
     }
     setStatus({ error: "", success: "" });
@@ -221,11 +221,11 @@ export default function ServiceCategoriesPage() {
 
   const addSubcategory = async () => {
     if (!selectedCategory) {
-      setError("Pehle category select karo.");
+      setError("First select a category.");
       return;
     }
     if (!subInput.trim() || subInput.trim().length < 2) {
-      setError("Subcategory name kam az kam 2 characters ka hona chahiye.");
+      setError("Subcategory name must be at least 2 characters.");
       return;
     }
     setStatus({ error: "", success: "" });
@@ -266,11 +266,11 @@ export default function ServiceCategoriesPage() {
   const saveService = async (event) => {
     event.preventDefault();
     if (!serviceForm.name.trim()) {
-      setError("Service name required hai.");
+      setError("Service name is required.");
       return;
     }
     if (!serviceForm.categoryId) {
-      setError("Service ko subcategory ke andar save karo.");
+      setError("Save the service under a subcategory.");
       return;
     }
     const payload = {
@@ -373,7 +373,7 @@ export default function ServiceCategoriesPage() {
           <div>
             <h1 style={{ margin: 0 }}>Service Catalog Workspace</h1>
             <p style={{ margin: "8px 0 0", color: "#64748b" }}>
-              Category ke andar subcategory aur subcategory ke andar services manage karo.
+              Manage subcategories within categories and services within subcategories.
             </p>
           </div>
           <div className="badge-row">
@@ -517,9 +517,9 @@ export default function ServiceCategoriesPage() {
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
             {!selectedCategory ? (
-              <EmptyState title="Select category" message="Pehle left side se category select karo." />
+              <EmptyState title="Select category" message="Select a category from the left side first." />
             ) : subcategories.length === 0 ? (
-              <EmptyState title="No subcategories yet" message="Is category ke andar abhi koi subcategory nahi bani." />
+              <EmptyState title="No subcategories yet" message="No subcategories have been created in this category yet." />
             ) : (
               subcategories.map((subcategory) => (
                 <div
@@ -659,9 +659,9 @@ export default function ServiceCategoriesPage() {
 
           <div style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
             {!selectedSubcategory ? (
-              <EmptyState title="Select subcategory" message="Services dekhne aur add karne ke liye middle column se subcategory choose karo." />
+              <EmptyState title="Select subcategory" message="Choose a subcategory from the middle column to view and add services." />
             ) : items.length === 0 ? (
-              <EmptyState title={svcSearch ? "No matching services" : "No services yet"} message={svcSearch ? "Search clear karke dobara dekho." : "Is subcategory mein pehli service add karo."} />
+              <EmptyState title={svcSearch ? "No matching services" : "No services yet"} message={svcSearch ? "Clear the search and try again." : "Add the first service to this subcategory."} />
             ) : (
               items.map((service) => (
                 <div

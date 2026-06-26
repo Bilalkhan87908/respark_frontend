@@ -1164,7 +1164,7 @@ export default function PosDashboardPage() {
                     Invoice Message
                   </label>
                   <div style={{ marginTop: 8, color: "#64748b", fontSize: 13 }}>
-                    Invoice update ke baad customer automation message ko yahin se control kar sakte ho.
+                    You can control the customer automation message here after updating the invoice.
                   </div>
                 </div>
 

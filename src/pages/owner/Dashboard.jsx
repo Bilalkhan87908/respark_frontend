@@ -110,10 +110,28 @@ export default function OwnerDashboard() {
               </div>
             </div>
             {data.lowStockAlertCount > 0 ? (
-              <div className="list-item" style={{ background: "rgba(239, 68, 68, 0.05)", borderLeft: "4px solid #ef4444" }}>
-                <strong style={{ color: "#b91c1c" }}>Low Stock Warning</strong>
-                <div className="item-meta" style={{ color: "#ef4444", fontWeight: 500 }}>{data.lowStockAlertCount} items need attention</div>
-              </div>
+              <>
+                <div className="list-item" style={{ background: "rgba(239, 68, 68, 0.05)", borderLeft: "4px solid #ef4444" }}>
+                  <strong style={{ color: "#b91c1c" }}>Low Stock Warning</strong>
+                  <div className="item-meta" style={{ color: "#ef4444", fontWeight: 500 }}>{data.lowStockAlertCount} item{data.lowStockAlertCount !== 1 ? "s" : ""} need attention</div>
+                </div>
+                {(data.lowStockProducts || []).slice(0, 5).map((product) => (
+                  <div key={product.id} className="list-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(239, 68, 68, 0.03)", borderLeft: "4px solid #fca5a5", paddingLeft: 14 }}>
+                    <div>
+                      <strong style={{ fontSize: 13 }}>{product.name}</strong>
+                      <div className="item-meta" style={{ margin: 0 }}>Min: {product.minStock} {product.unit}</div>
+                    </div>
+                    <span style={{ background: "#fef2f2", color: "#b91c1c", fontWeight: 700, fontSize: 13, padding: "4px 10px", borderRadius: 6, border: "1px solid #fecaca" }}>
+                      {product.currentStock} left
+                    </span>
+                  </div>
+                ))}
+                {data.lowStockAlertCount > 5 && (
+                  <div className="list-item" style={{ textAlign: "center" }}>
+                    <a href="/admin/inventory" style={{ color: "#6366f1", fontWeight: 600, fontSize: 13, textDecoration: "none" }}>View all {data.lowStockAlertCount} low stock items →</a>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="list-item" style={{ background: "rgba(15, 118, 110, 0.05)", borderLeft: "4px solid var(--accent)" }}>
                 <strong style={{ color: "var(--accent)" }}>Inventory Status</strong>

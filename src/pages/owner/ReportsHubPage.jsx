@@ -285,6 +285,7 @@ const normalizeRowForReport = (reportKey, row, index) => {
   }
 
   if (reportKey === "memberships") {
+    if (row["Customer"] !== undefined) return row;
     return {
       Date: prettifyDate(row.createdAt),
       Customer: row.customer?.name || "-",
@@ -296,6 +297,7 @@ const normalizeRowForReport = (reportKey, row, index) => {
   }
 
   if (reportKey === "packages") {
+    if (row["Customer"] !== undefined) return row;
     return {
       Date: prettifyDate(row.createdAt),
       Customer: row.customer?.name || "-",

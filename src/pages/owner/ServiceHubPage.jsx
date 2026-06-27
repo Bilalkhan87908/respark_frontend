@@ -21,6 +21,7 @@ export default function ServiceHubPage() {
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedGender, setSelectedGender] = useState("ALL");
   const [searchItem, setSearchItem] = useState('');
@@ -41,28 +42,39 @@ export default function ServiceHubPage() {
     categoryId: '',
     gender: 'UNISEX',
     price: 0,
+    salePrice: '',
     durationMin: 30,
     taxRate: 0,
     commissionPct: 0,
     onlineBookingEnabled: false,
-    description: '',
+    descriptions: [''],
     isFeatured: false,
-    isPopular: false
+    isPopular: false,
+    position: 0,
+    isActive: true,
+    hideFromCatalogue: false,
+    nonDiscountable: false,
+    serviceTag: '',
+    serviceRemainderDays: 0,
+    consumables: [],
+    taxes: []
   });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [catRes, srvRes, branchRes] = await Promise.allSettled([
+      const [catRes, srvRes, branchRes, prodRes] = await Promise.allSettled([
         api.get('/owner/service-categories'),
         api.get('/owner/services'),
-        api.get('/owner/branches')
+        api.get('/owner/branches'),
+        api.get('/owner/products')
       ]);
       if (catRes.status === "fulfilled") setCategories(catRes.value.data || []);
       else throw catRes.reason;
       if (srvRes.status === "fulfilled") setServices(srvRes.value.data || []);
       else throw srvRes.reason;
       if (branchRes.status === "fulfilled") setBranches(branchRes.value.data || []);
+      if (prodRes.status === "fulfilled") setProducts(prodRes.value.data || []);
     } catch (error) {
       setStatus({ error: formatApiError(error, "Failed to load data"), success: '' });
     } finally {
@@ -127,13 +139,22 @@ export default function ServiceHubPage() {
       categoryId: selectedCategory || '',
       gender: 'UNISEX',
       price: 0,
+      salePrice: '',
       durationMin: 30,
       taxRate: 0,
       commissionPct: 0,
       onlineBookingEnabled: false,
-      description: '',
+      descriptions: [''],
       isFeatured: false,
-      isPopular: false
+      isPopular: false,
+      position: 0,
+      isActive: true,
+      hideFromCatalogue: false,
+      nonDiscountable: false,
+      serviceTag: '',
+      serviceRemainderDays: 0,
+      consumables: [],
+      taxes: []
     });
   };
 
@@ -144,19 +165,34 @@ export default function ServiceHubPage() {
 
   const startEditService = (service) => {
     setEditingId(service.id);
+    let descs = [''];
+    if (Array.isArray(service.description)) {
+      descs = service.description.length > 0 ? service.description : [''];
+    } else if (service.description && typeof service.description === 'string') {
+      descs = [service.description];
+    }
     setSrvForm({
       name: service.name || '',
       branchId: service.branchId || '',
       categoryId: service.categoryId || service.category?.id || '',
       gender: service.gender || 'UNISEX',
       price: Number(service.price || 0),
+      salePrice: service.salePrice != null ? Number(service.salePrice) : '',
       durationMin: Number(service.durationMin || 30),
       taxRate: Number(service.taxRate || 0),
       commissionPct: Number(service.commissionPct || 0),
       onlineBookingEnabled: Boolean(service.onlineBookingEnabled),
-      description: service.description || '',
+      descriptions: descs,
       isFeatured: Boolean(service.isFeatured),
-      isPopular: Boolean(service.isPopular)
+      isPopular: Boolean(service.isPopular),
+      position: service.position ?? 0,
+      isActive: service.isActive !== false,
+      hideFromCatalogue: Boolean(service.hideFromCatalogue),
+      nonDiscountable: Boolean(service.nonDiscountable),
+      serviceTag: service.serviceTag || '',
+      serviceRemainderDays: service.serviceRemainderDays ?? 0,
+      consumables: (service.consumables || []).map(c => ({ productId: c.productId || c.product?.id || '', reqdQty: Number(c.reqdQty || 0), productName: c.product?.name || '' })),
+      taxes: (service.taxes || []).map(t => ({ name: t.name || '', rate: Number(t.rate || 0) }))
     });
     setIsServiceModalOpen(true);
   };
@@ -178,19 +214,29 @@ export default function ServiceHubPage() {
   const handleServiceSubmit = async (event) => {
     event.preventDefault();
     setStatus({ error: '', success: '' });
+    const filteredDescs = srvForm.descriptions.filter(d => d.trim() !== '');
     const payload = {
       name: srvForm.name.trim(),
       branchId: srvForm.branchId || undefined,
       categoryId: srvForm.categoryId || undefined,
       gender: srvForm.gender || undefined,
       price: Number(srvForm.price),
+      salePrice: srvForm.salePrice !== '' && srvForm.salePrice != null ? Number(srvForm.salePrice) : null,
       durationMin: Number(srvForm.durationMin),
       taxRate: Number(srvForm.taxRate),
       commissionPct: Number(srvForm.commissionPct),
       onlineBookingEnabled: Boolean(srvForm.onlineBookingEnabled),
-      description: srvForm.description || undefined,
+      description: filteredDescs.length === 1 ? filteredDescs[0] : filteredDescs.length > 0 ? filteredDescs : undefined,
       isFeatured: Boolean(srvForm.isFeatured),
-      isPopular: Boolean(srvForm.isPopular)
+      isPopular: Boolean(srvForm.isPopular),
+      position: Number(srvForm.position),
+      isActive: Boolean(srvForm.isActive),
+      hideFromCatalogue: Boolean(srvForm.hideFromCatalogue),
+      nonDiscountable: Boolean(srvForm.nonDiscountable),
+      serviceTag: srvForm.serviceTag || undefined,
+      serviceRemainderDays: Number(srvForm.serviceRemainderDays),
+      consumables: srvForm.consumables.filter(c => c.productId).map(c => ({ productId: c.productId, reqdQty: Number(c.reqdQty) })),
+      taxes: srvForm.taxes.filter(t => t.name.trim()).map(t => ({ name: t.name.trim(), rate: Number(t.rate) }))
     };
     try {
       if (editingId) {
@@ -352,21 +398,34 @@ export default function ServiceHubPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {group.items.map((service) => (
-                  <div key={service.id} className="hub-item-card" style={{ alignItems: 'flex-start' }}>
+                  <div key={service.id} className="hub-item-card" style={{ alignItems: 'flex-start', opacity: service.isActive === false ? 0.6 : 1 }}>
                     <div className="hub-item-info" style={{ width: '100%' }}>
-                      <strong>{service.name}</strong>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <strong>{service.name}</strong>
+                        {service.serviceTag && <span style={{ fontSize: 11, background: "#e0e7ff", color: "#3730a3", padding: "1px 8px", borderRadius: 4 }}>{service.serviceTag}</span>}
+                        {service.hideFromCatalogue && <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "1px 8px", borderRadius: 4 }}>Hidden</span>}
+                        {service.nonDiscountable && <span style={{ fontSize: 11, background: "#fee2e2", color: "#991b1b", padding: "1px 8px", borderRadius: 4 }}>No Discount</span>}
+                      </div>
                       <div className="hub-item-meta" style={{ marginTop: 4 }}>
-                        <span>Price {Number(service.price || 0)}</span>
+                        <span>Price ₹{Number(service.price || 0)}</span>
+                        {service.salePrice != null && <span style={{ color: "#dc2626" }}>Sale ₹{Number(service.salePrice)}</span>}
                         <span>Duration {service.durationMin} min</span>
-                        <span>Tax {Number(service.taxRate || 0)}%</span>
+                        {Number(service.taxRate || 0) > 0 && <span>Tax {Number(service.taxRate)}%</span>}
                       </div>
                       <div className="hub-item-meta" style={{ marginTop: 4, flexWrap: 'wrap' }}>
                         <span>{service.category?.name || 'Uncategorized'}</span>
                         <span>{service.branch?.name || 'Salon wide'}</span>
-                        <span>Gender {service.gender || 'UNISEX'}</span>
+                        <span>{service.gender || 'UNISEX'}</span>
                         <span>Booking {service.onlineBookingEnabled ? 'Enabled' : 'Disabled'}</span>
+                        {service.consumables?.length > 0 && <span>{service.consumables.length} consumable(s)</span>}
+                        {service.taxes?.length > 0 && <span>{service.taxes.length} tax(es)</span>}
                       </div>
-                      {service.description && (
+                      {Array.isArray(service.description) && service.description.length > 0 && (
+                        <div className="hub-item-meta" style={{ marginTop: 6, color: '#475569' }}>
+                          {service.description.join(' | ')}
+                        </div>
+                      )}
+                      {typeof service.description === 'string' && service.description && (
                         <div className="hub-item-meta" style={{ marginTop: 6, color: '#475569' }}>
                           {service.description}
                         </div>
@@ -440,21 +499,29 @@ export default function ServiceHubPage() {
               <button type="button" onClick={() => setIsServiceModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#60a5fa", padding: 4, display: "flex" }}><X size={18} /></button>
             </div>
             <div className="hub-modal-body">
+              {/* Name + Active toggle */}
               <div className="hub-form-row">
                 <div className="hub-form-group" style={{ flex: 2 }}>
                   <label>Name *</label>
                   <input type="text" className="hub-input" value={srvForm.name} onChange={e => setSrvForm({...srvForm, name: e.target.value})} placeholder="Haircut, Beard Trim..." />
                 </div>
-                <div className="hub-form-group" style={{ flex: 1 }}>
+                <div className="hub-form-group" style={{ flex: 1, display: "flex", alignItems: "end", gap: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#334155", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <input type="checkbox" checked={srvForm.isActive} onChange={e => setSrvForm({...srvForm, isActive: e.target.checked})} style={{ width: 18, height: 18, accentColor: "#2563eb" }} />
+                    Active
+                  </label>
+                </div>
+              </div>
+
+              {/* Branch + Category */}
+              <div className="hub-form-row">
+                <div className="hub-form-group">
                   <label>Branch</label>
                   <select className="hub-input" value={srvForm.branchId} onChange={e => setSrvForm({...srvForm, branchId: e.target.value})}>
                     <option value="">Salon wide</option>
                     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                   </select>
                 </div>
-              </div>
-
-              <div className="hub-form-row">
                 <div className="hub-form-group">
                   <label>Category</label>
                   <select className="hub-input" value={srvForm.categoryId} onChange={e => setSrvForm({...srvForm, categoryId: e.target.value})}>
@@ -467,21 +534,10 @@ export default function ServiceHubPage() {
                     ])}
                   </select>
                 </div>
-                <div className="hub-form-group">
-                  <label>Gender</label>
-                  <select className="hub-input" value={srvForm.gender} onChange={e => setSrvForm({...srvForm, gender: e.target.value})}>
-                    <option value="UNISEX">Unisex</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="MALE">Male</option>
-                  </select>
-                </div>
               </div>
 
+              {/* Duration + Position + Service Reminder Days */}
               <div className="hub-form-row">
-                <div className="hub-form-group">
-                  <label>Price</label>
-                  <input type="number" min="0" className="hub-input" value={srvForm.price} onChange={e => setSrvForm({...srvForm, price: e.target.value})} />
-                </div>
                 <div className="hub-form-group">
                   <label>Duration (min)</label>
                   <select className="hub-input" value={srvForm.durationMin} onChange={e => setSrvForm({...srvForm, durationMin: e.target.value})}>
@@ -490,8 +546,52 @@ export default function ServiceHubPage() {
                     ))}
                   </select>
                 </div>
+                <div className="hub-form-group">
+                  <label>Position *</label>
+                  <input type="number" min="0" className="hub-input" value={srvForm.position} onChange={e => setSrvForm({...srvForm, position: e.target.value})} />
+                </div>
+                <div className="hub-form-group">
+                  <label>Service Reminder Days</label>
+                  <input type="number" min="0" className="hub-input" value={srvForm.serviceRemainderDays} onChange={e => setSrvForm({...srvForm, serviceRemainderDays: e.target.value})} />
+                </div>
               </div>
 
+              {/* Group (Gender) + Hide from catalogue */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderTop: "1px solid #f1f5f9", marginBottom: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: "#0f172a" }}>Group</span>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#334155", cursor: "pointer" }}>
+                  <input type="checkbox" checked={srvForm.hideFromCatalogue} onChange={e => setSrvForm({...srvForm, hideFromCatalogue: e.target.checked})} style={{ width: 18, height: 18, accentColor: "#2563eb" }} />
+                  Hide from catalogue
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
+                {[{value: "UNISEX", label: "Both"}, {value: "FEMALE", label: "Female"}, {value: "MALE", label: "Male"}].map(opt => (
+                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "#334155", cursor: "pointer" }}>
+                    <input type="radio" name="srvGender" checked={srvForm.gender === opt.value} onChange={() => setSrvForm({...srvForm, gender: opt.value})} style={{ width: 16, height: 16, accentColor: "#2563eb" }} />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+
+              {/* Price + Sale Price + Non Discountable */}
+              <div className="hub-form-row" style={{ alignItems: "end" }}>
+                <div className="hub-form-group" style={{ flex: 1 }}>
+                  <label>Price (₹)</label>
+                  <input type="number" min="0" className="hub-input" value={srvForm.price} onChange={e => setSrvForm({...srvForm, price: e.target.value})} />
+                </div>
+                <div className="hub-form-group" style={{ flex: 1 }}>
+                  <label>Sale Price (₹)</label>
+                  <input type="number" min="0" className="hub-input" value={srvForm.salePrice} onChange={e => setSrvForm({...srvForm, salePrice: e.target.value})} placeholder="Optional" />
+                </div>
+                <div className="hub-form-group" style={{ flex: 1, display: "flex", alignItems: "end", paddingBottom: 2 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#334155", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <input type="checkbox" checked={srvForm.nonDiscountable} onChange={e => setSrvForm({...srvForm, nonDiscountable: e.target.checked})} style={{ width: 18, height: 18, accentColor: "#2563eb" }} />
+                    Non Discountable
+                  </label>
+                </div>
+              </div>
+
+              {/* Tax Rate + Commission % + Service Tag */}
               <div className="hub-form-row">
                 <div className="hub-form-group">
                   <label>Tax Rate %</label>
@@ -501,14 +601,107 @@ export default function ServiceHubPage() {
                   <label>Commission %</label>
                   <input type="number" min="0" className="hub-input" value={srvForm.commissionPct} onChange={e => setSrvForm({...srvForm, commissionPct: e.target.value})} />
                 </div>
+                <div className="hub-form-group">
+                  <label>Service Tag</label>
+                  <input type="text" className="hub-input" value={srvForm.serviceTag} onChange={e => setSrvForm({...srvForm, serviceTag: e.target.value})} placeholder="e.g. Premium, Basic..." />
+                </div>
               </div>
 
-              <div className="hub-form-group">
-                <label>Description</label>
-                <textarea className="hub-input" rows="3" value={srvForm.description} onChange={e => setSrvForm({...srvForm, description: e.target.value})} placeholder="Optional service notes..." />
+              {/* Multiple Descriptions */}
+              <div style={{ padding: "12px 0", borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "#0f172a" }}>Description</span>
+                  <button type="button" onClick={() => setSrvForm({...srvForm, descriptions: [...srvForm.descriptions, '']})} style={{ background: "#2563eb", color: "white", border: "none", borderRadius: "50%", width: 28, height: 28, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                </div>
+                {srvForm.descriptions.map((desc, idx) => (
+                  <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "start" }}>
+                    <div style={{ flex: 1 }}>
+                      <input type="text" className="hub-input" value={desc} onChange={e => {
+                        const newDescs = [...srvForm.descriptions];
+                        newDescs[idx] = e.target.value;
+                        setSrvForm({...srvForm, descriptions: newDescs});
+                      }} placeholder={`Service description ${idx + 1}`} style={{ width: "100%" }} />
+                    </div>
+                    {srvForm.descriptions.length > 1 && (
+                      <button type="button" onClick={() => {
+                        const newDescs = srvForm.descriptions.filter((_, i) => i !== idx);
+                        setSrvForm({...srvForm, descriptions: newDescs});
+                      }} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 20, padding: "4px 8px", lineHeight: 1 }}>✕</button>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              <div className="hub-form-row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+              {/* Consumables */}
+              <div style={{ padding: "12px 0", borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "#0f172a" }}>Consumables</span>
+                  <button type="button" onClick={() => setSrvForm({...srvForm, consumables: [...srvForm.consumables, { productId: '', reqdQty: 0, productName: '' }]})} style={{ background: "#2563eb", color: "white", border: "none", borderRadius: "50%", width: 28, height: 28, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                </div>
+                {srvForm.consumables.map((item, idx) => (
+                  <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                    <div style={{ flex: 2 }}>
+                      {idx === 0 && <label style={{ fontSize: 12, color: "#64748b", marginBottom: 4, display: "block" }}>Item</label>}
+                      <select className="hub-input" value={item.productId} onChange={e => {
+                        const newItems = [...srvForm.consumables];
+                        const prod = products.find(p => p.id === e.target.value);
+                        newItems[idx] = {...newItems[idx], productId: e.target.value, productName: prod?.name || ''};
+                        setSrvForm({...srvForm, consumables: newItems});
+                      }} style={{ width: "100%" }}>
+                        <option value="">Select product</option>
+                        {products.filter(p => p.isActive).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      {idx === 0 && <label style={{ fontSize: 12, color: "#64748b", marginBottom: 4, display: "block" }}>Reqd Qty</label>}
+                      <input type="number" min="0" className="hub-input" value={item.reqdQty} onChange={e => {
+                        const newItems = [...srvForm.consumables];
+                        newItems[idx] = {...newItems[idx], reqdQty: e.target.value};
+                        setSrvForm({...srvForm, consumables: newItems});
+                      }} style={{ width: "100%" }} />
+                    </div>
+                    <button type="button" onClick={() => {
+                      const newItems = srvForm.consumables.filter((_, i) => i !== idx);
+                      setSrvForm({...srvForm, consumables: newItems});
+                    }} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 20, padding: "4px 8px", lineHeight: 1, marginBottom: 2 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Taxes */}
+              <div style={{ padding: "12px 0", borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "#0f172a" }}>Taxes</span>
+                  <button type="button" onClick={() => setSrvForm({...srvForm, taxes: [...srvForm.taxes, { name: '', rate: 0 }]})} style={{ background: "#2563eb", color: "white", border: "none", borderRadius: "50%", width: 28, height: 28, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                </div>
+                {srvForm.taxes.map((tax, idx) => (
+                  <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "end" }}>
+                    <div style={{ flex: 2 }}>
+                      {idx === 0 && <label style={{ fontSize: 12, color: "#64748b", marginBottom: 4, display: "block" }}>Tax Name</label>}
+                      <input type="text" className="hub-input" value={tax.name} onChange={e => {
+                        const newTaxes = [...srvForm.taxes];
+                        newTaxes[idx] = {...newTaxes[idx], name: e.target.value};
+                        setSrvForm({...srvForm, taxes: newTaxes});
+                      }} placeholder="GST, VAT..." style={{ width: "100%" }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      {idx === 0 && <label style={{ fontSize: 12, color: "#64748b", marginBottom: 4, display: "block" }}>Rate %</label>}
+                      <input type="number" min="0" className="hub-input" value={tax.rate} onChange={e => {
+                        const newTaxes = [...srvForm.taxes];
+                        newTaxes[idx] = {...newTaxes[idx], rate: e.target.value};
+                        setSrvForm({...srvForm, taxes: newTaxes});
+                      }} style={{ width: "100%" }} />
+                    </div>
+                    <button type="button" onClick={() => {
+                      const newTaxes = srvForm.taxes.filter((_, i) => i !== idx);
+                      setSrvForm({...srvForm, taxes: newTaxes});
+                    }} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 20, padding: "4px 8px", lineHeight: 1, marginBottom: 2 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Toggle Row */}
+              <div className="hub-form-row" style={{ marginTop: 8, flexWrap: 'wrap', borderTop: "1px solid #f1f5f9", paddingTop: 12 }}>
                 <div className="hub-toggle-group">
                   <input type="checkbox" checked={srvForm.onlineBookingEnabled} onChange={e => setSrvForm({...srvForm, onlineBookingEnabled: e.target.checked})} />
                   <span>Enable Online Booking</span>

@@ -11,7 +11,7 @@ export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogou
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [quickSearch, setQuickSearch] = useState("");
-  const [searchResults, setSearchResults] = useState({ customers: [], appointments: [], services: [] });
+  const [searchResults, setSearchResults] = useState({ customers: [], services: [], products: [], staff: [], appointments: [], invoices: [] });
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const permissions = auth?.membership?.permissions || {};
@@ -57,14 +57,17 @@ export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogou
   const flatSearchResults = [
     ...searchResults.customers.map((item) => ({ ...item, type: "Guest" })),
     ...searchResults.appointments.map((item) => ({ ...item, type: "Appointment" })),
-    ...searchResults.services.map((item) => ({ ...item, type: "Service" }))
+    ...searchResults.services.map((item) => ({ ...item, type: "Service" })),
+    ...searchResults.products.map((item) => ({ ...item, type: "Product" })),
+    ...searchResults.staff.map((item) => ({ ...item, type: "Staff" })),
+    ...searchResults.invoices.map((item) => ({ ...item, type: "Invoice" }))
   ];
 
   useEffect(() => {
     if (!canGlobalSearch) return undefined;
     const term = quickSearch.trim();
     if (term.length < 2) {
-      setSearchResults({ customers: [], appointments: [], services: [] });
+      setSearchResults({ customers: [], services: [], products: [], staff: [], appointments: [], invoices: [] });
       setSearchLoading(false);
       return undefined;
     }
@@ -78,11 +81,14 @@ export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogou
         setSearchResults({
           customers: response.data?.customers || [],
           appointments: response.data?.appointments || [],
-          services: response.data?.services || []
+          services: response.data?.services || [],
+          products: response.data?.products || [],
+          staff: response.data?.staff || [],
+          invoices: response.data?.invoices || []
         });
         setSearchOpen(true);
       } catch {
-        if (active) setSearchResults({ customers: [], appointments: [], services: [] });
+        if (active) setSearchResults({ customers: [], services: [], products: [], staff: [], appointments: [], invoices: [] });
       } finally {
         if (active) setSearchLoading(false);
       }
@@ -457,7 +463,7 @@ export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogou
                 <Search size={16} color="#64748b" />
                 <input
                   type="text"
-                  placeholder="Search guests, appointments, or services..."
+                  placeholder="Search guests, services, products, staff, invoices..."
                   value={quickSearch}
                   onFocus={() => setSearchOpen(true)}
                   onChange={(event) => setQuickSearch(event.target.value)}
@@ -481,11 +487,17 @@ export default function Topbar({ auth, sidebarExpanded, onToggleSidebar, onLogou
               {searchOpen && quickSearch.trim().length >= 2 ? (
                 <div className="respark-search-dropdown" onMouseDown={(event) => event.preventDefault()}>
                   {searchLoading ? <div className="respark-search-empty">Searching workspace...</div> : null}
-                  {!searchLoading && !flatSearchResults.length ? <div className="respark-search-empty">No matching guests, appointments, or services.</div> : null}
-                  {!searchLoading && ["customers", "appointments", "services"].map((key) => {
+                  {!searchLoading && !flatSearchResults.length ? <div className="respark-search-empty">No results found for "{quickSearch.trim()}"</div> : null}
+                  {!searchLoading && [
+                    { key: "customers", label: "Guests" },
+                    { key: "services", label: "Services" },
+                    { key: "products", label: "Products" },
+                    { key: "staff", label: "Staff" },
+                    { key: "appointments", label: "Appointments" },
+                    { key: "invoices", label: "Invoices" }
+                  ].map(({ key, label }) => {
                     const rows = searchResults[key] || [];
                     if (!rows.length) return null;
-                    const label = key === "customers" ? "Guests" : key === "appointments" ? "Appointments" : "Services";
                     return (
                       <div key={key}>
                         <div className="respark-search-section-title">{label}</div>
